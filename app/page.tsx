@@ -8,6 +8,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import ConversationSidebar from "@/components/ConversationSidebar";
+import type { IconRailMode } from "@/components/IconRail";
 import ChatPanel from "@/components/ChatPanel";
 import CanvasPanel, { type CanvasView } from "@/components/CanvasPanel";
 import CommandPalette from "@/components/CommandPalette";
@@ -19,6 +20,17 @@ import BlipCompanion from "@/components/blip/BlipCompanion";
 // work canvas (right) that follows the conversation and renders whatever the
 // router decided to do. A collapsible rail of past conversations on the far left.
 // ============================================================================
+
+// Per-rail-mode starter prompt — dropped into the composer on click so the icon
+// rail is a real launcher, not decoration. "brain" is handled separately (it
+// opens the knowledge graph rather than composing a prompt).
+const RAIL_PROMPT: Partial<Record<IconRailMode, string>> = {
+  threads: "Find where buyers are complaining about resume tools — for nolongerjobless.com",
+  pipeline: "Find decision-makers and verified emails for nolongerjobless.com's ICP",
+  ads: "Find competitors and scan their winning ads for nolongerjobless.com",
+  calendar: "Plan a viral content calendar for nolongerjobless.com",
+  onboarding: "Design a PLG onboarding flow for nolongerjobless.com",
+};
 
 export default function Home() {
   const [conversationId, setConversationId] = useState<Id<"conversations"> | null>(null);
@@ -36,6 +48,27 @@ export default function Home() {
     setFocusedRunId(runId ?? null);
   };
 
+  // The left icon rail: "brain" opens the knowledge graph; every other mode
+  // drops that track's ready-to-run prompt into the composer (one click → the
+  // swarm builds it). Pure window-event handoff to ChatPanel; never throws.
+  const onSelectMode = (mode: IconRailMode) => {
+    if (mode === "brain") {
+      setCanvasView("brain");
+      return;
+    }
+    setCanvasView("run");
+    const text = RAIL_PROMPT[mode];
+    if (text && typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("intercept:compose", { detail: { text, submit: false } }),
+        );
+      } catch {
+        /* never break navigation */
+      }
+    }
+  };
+
   return (
     <main className="flex h-[100dvh] w-full overflow-hidden bg-canvas text-ink">
       <PanelBoundary label="Loading conversations…">
@@ -46,6 +79,7 @@ export default function Home() {
           onToggle={() => setCollapsed((v) => !v)}
           brainActive={canvasView === "brain"}
           onOpenBrain={() => setCanvasView("brain")}
+          onSelectMode={onSelectMode}
         />
       </PanelBoundary>
 

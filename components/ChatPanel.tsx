@@ -162,6 +162,34 @@ export default function ChatPanel({
     [send, conversationId, sending, setConversationId],
   );
 
+  // The canvas overview + the left icon rail pre-fill a starter prompt here via
+  // a window event, so every capability is one click from the composer. Pure,
+  // additive, never throws. `submit:true` fires it immediately.
+  useEffect(() => {
+    const onCompose = (e: Event) => {
+      const detail = (e as CustomEvent<{ text?: string; submit?: boolean }>).detail;
+      const text = detail?.text?.trim();
+      if (!text) return;
+      if (detail?.submit) {
+        void submit(text);
+        return;
+      }
+      setValue(text);
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        el?.focus();
+        try {
+          el?.setSelectionRange(text.length, text.length);
+        } catch {
+          /* selection unsupported — focus alone is enough */
+        }
+      });
+    };
+    window.addEventListener("intercept:compose", onCompose as EventListener);
+    return () =>
+      window.removeEventListener("intercept:compose", onCompose as EventListener);
+  }, [submit]);
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     void submit(value);
