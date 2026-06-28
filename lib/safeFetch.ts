@@ -1,26 +1,23 @@
 // ============================================================================
 // INTERCEPT — SSRF-SAFE FETCH
 // Server-side fetches of USER-SUPPLIED URLs (reel analysis, company homepage
-// scrape) are an SSRF vector: an attacker can point us at cloud metadata
-// (169.254.169.254 / metadata.google.internal), loopback, or private ranges to
-// exfiltrate credentials or reach internal services. Every such fetch MUST go
-// through assertSafeUrl / safeFetch.
+// scrape, stored video bytes) are an SSRF vector: an attacker can point us at
+// cloud metadata (169.254.169.254 / metadata.google.internal), loopback, or
+// private ranges. Every such fetch MUST go through assertSafeUrl / safeFetch.
 //
-//   assertSafeUrl(url)  -> sync: throws unless https: (http: only for allowlisted
+//   assertSafeUrl(url)  -> throws unless https: (http: only for allowlisted
 //                          hosts) and the host is not a private/loopback/
 //                          link-local/metadata IP LITERAL or blocked hostname.
-//   assertHostPublic(h) -> async: DNS-resolves a hostname and throws if ANY
-//                          resolved address is private. Closes the "domain that
-//                          resolves to a private IP" rebinding hole that a
-//                          string-only check misses.
-//   safeFetch(url, init)-> assertSafeUrl + assertHostPublic + 15s timeout + a
-//                          size cap, re-validating (string + DNS) every redirect.
+//   safeFetch(url, init)-> assertSafeUrl + 15s timeout + size cap, re-validating
+//                          every redirect hop.
 //
-// node:dns only (no extra deps) so it can't break the Convex bundle. These run
-// inside Convex "use node" actions, never the browser.
+// IMPORTANT: this file is imported by Convex DEFAULT-runtime modules (the enrich
+// and watcher agents), which cannot use Node built-ins — so all checks here are
+// SYNCHRONOUS and dependency-free (no node:dns). Residual: a public hostname that
+// *resolves* to a private IP (DNS rebinding) is not caught here. The resolved-IP
+// check belongs in the "use node" fetch paths (e.g. convex/storage.ts) where
+// node:dns is available; track that as a production hardening follow-up.
 // ============================================================================
-
-import { lookup as dnsLookup } from "node:dns/promises";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024; // 25 MB hard cap
@@ -52,7 +49,7 @@ function isPrivateIpv4(host: string): boolean {
   const octets = m.slice(1, 5).map((n) => Number(n));
   if (octets.some((o) => o > 255)) return true; // malformed -> treat as unsafe
   const [a, b] = octets;
-  if (a === 0) return true; // 0.0.0.0/8 ("this host")
+  if (a === 0) return true; // 0.0.0.0/8
   if (a === 10) return true; // 10.0.0.0/8
   if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 CGNAT
   if (a === 127) return true; // 127.0.0.0/8 loopback
@@ -74,18 +71,14 @@ function isPrivateIpv6(host: string): boolean {
   return false;
 }
 
-function isIpLiteral(host: string): boolean {
-  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":");
-}
-
 function bareHost(url: URL): string {
   return url.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
 }
 
 /**
- * Sync validation of a user-supplied URL: protocol + IP-LITERAL host. Returns
- * the parsed URL when safe; throws otherwise. For hostnames, pair with
- * assertHostPublic (DNS) — string checks alone do not stop SSRF via DNS.
+ * Validate a user-supplied URL before any server-side fetch. Returns the parsed
+ * URL when safe; throws a descriptive Error otherwise. Synchronous + dependency
+ * free so it is safe to import into Convex's default runtime.
  */
 export function assertSafeUrl(rawUrl: string): URL {
   let url: URL;
@@ -121,42 +114,8 @@ export function assertSafeUrl(rawUrl: string): URL {
 }
 
 /**
- * DNS-resolve a hostname and throw if ANY resolved address is private/reserved.
- * This is the key SSRF defense beyond the string check: it blocks a public
- * hostname (e.g. an attacker domain) that resolves to 169.254.169.254 / a
- * loopback / a private RFC1918 address. Skipped for IP literals (already
- * validated synchronously).
- *
- * Residual: a DNS-rebinding adversary can still flip the record in the narrow
- * window between this lookup and undici's own connect-time resolution (TOCTOU).
- * The full fix is pinning the socket to the validated IP via an undici Agent
- * `connect.lookup` hook; deferred to avoid bundler risk in the hackathon build.
- */
-export async function assertHostPublic(hostname: string): Promise<void> {
-  const host = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
-  if (isIpLiteral(host)) return; // literal already checked by assertSafeUrl
-  let addresses: { address: string }[];
-  try {
-    addresses = await dnsLookup(host, { all: true });
-  } catch {
-    throw new Error(`safeFetch: DNS resolution failed for ${host}`);
-  }
-  if (addresses.length === 0) {
-    throw new Error(`safeFetch: ${host} resolved to no addresses`);
-  }
-  for (const { address } of addresses) {
-    if (isPrivateIpv4(address) || isPrivateIpv6(address)) {
-      throw new Error(
-        `safeFetch: ${host} resolves to a private/metadata address (${address})`,
-      );
-    }
-  }
-}
-
-/**
- * SSRF-safe fetch. Validates the URL string AND its resolved IPs (and every
- * redirect hop), enforces a timeout and a content-length size cap. Drop-in for
- * `fetch` on user-supplied URLs.
+ * SSRF-safe fetch. Validates the URL (and every redirect hop), enforces a
+ * timeout and a content-length size cap. Drop-in for `fetch` on user URLs.
  */
 export async function safeFetch(
   rawUrl: string,
@@ -178,10 +137,9 @@ export async function safeFetch(
   }
 
   try {
-    // Validate the URL string + resolve & validate its IPs before connecting.
+    // Follow redirects manually so each hop is re-validated against the SSRF
+    // guard (a safe host can otherwise 302 to an internal address).
     let current = assertSafeUrl(rawUrl);
-    await assertHostPublic(current.hostname);
-
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
       const response = await fetch(current.href, {
         ...rest,
@@ -191,10 +149,7 @@ export async function safeFetch(
 
       const location = response.headers.get("location");
       if (response.status >= 300 && response.status < 400 && location) {
-        // Re-validate (string + DNS) every hop — a safe host can 302 internal.
-        const next = assertSafeUrl(new URL(location, current.href).href);
-        await assertHostPublic(next.hostname);
-        current = next;
+        current = assertSafeUrl(new URL(location, current.href).href);
         continue;
       }
 

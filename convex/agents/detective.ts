@@ -35,7 +35,7 @@ import {
   type IntentLabel,
 } from "../../lib/contract";
 import { chatJSON, embed } from "../../lib/openai";
-import { searchThreads } from "../../lib/exa";
+import { searchThreads, type ExaThread } from "../../lib/exa";
 
 // ----------------------------------------------------------------------------
 // Tuning knobs
@@ -85,7 +85,10 @@ interface ScoredThread extends Candidate {
 // ============================================================================
 export const run = internalAction({
   args: { runId: v.id("runs") },
-  handler: async (ctx, { runId }) => {
+  handler: async (
+    ctx,
+    { runId },
+  ): Promise<{ communities: number; threads: number }> => {
     const run = await ctx.runQuery(internal.runs.getRunInternal, { runId });
     if (!run) throw new Error(`detective: run ${runId} not found`);
 
@@ -111,7 +114,7 @@ export const run = internalAction({
     const candidates = dedupeByUrl(
       settled
         .filter(
-          (s): s is PromiseFulfilledResult<RawExaResult[]> =>
+          (s): s is PromiseFulfilledResult<ExaThread[]> =>
             s.status === "fulfilled" && Array.isArray(s.value),
         )
         .flatMap((s) => s.value)
@@ -147,10 +150,11 @@ export const run = internalAction({
     //    ctx.vectorSearch reads COMMITTED data and is scoped to this run by the
     //    `runId` filter, so we insert incrementally (embed -> search -> insert)
     //    and skip any thread that's a near-duplicate of one already kept.
-    const communityRows = await ctx.runMutation(
-      internal.agents.detective.saveCommunities,
-      { runId, communities },
-    );
+    const communityRows: { name: string; id: Id<"communities"> }[] =
+      await ctx.runMutation(internal.agents.detective.saveCommunities, {
+        runId,
+        communities,
+      });
     const idByName = new Map<string, Id<"communities">>(
       communityRows.map((r) => [r.name, r.id] as const),
     );

@@ -165,8 +165,8 @@ export const save = internalMutation({
 // ---------------------------------------------------------------------------
 export const run = internalAction({
   args: { runId: v.id("runs") },
-  handler: async (ctx, { runId }) => {
-    const { brief, company, threads } = await ctx.runQuery(
+  handler: async (ctx, { runId }): Promise<{ drafted: number }> => {
+    const { brief, company, threads }: ReplyContext = await ctx.runQuery(
       internal.agents.reply.threadsForRun,
       { runId },
     );
