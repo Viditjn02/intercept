@@ -376,7 +376,8 @@ export function useBlipReactions(
       // Idle auto-suggestions disabled per feedback — Blip now speaks ONLY in
       // response to a real interaction (click / key / scroll / hover), never on
       // its own while idle (no random bubbles popping during a demo recording).
-      if (false && quiet && free && visible) {
+      const idleTipsEnabled = false as boolean;
+      if (idleTipsEnabled && quiet && free && visible) {
         const pick = pickSuggestion("idle", lastSuggestLine.current);
         if (pick) {
           lastSuggestAt.current = now;
