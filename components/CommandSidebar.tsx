@@ -192,7 +192,10 @@ export default function CommandSidebar({
   // new · ⌘K · theme. ──────────────────────────────────────────────────────────
   if (collapsed) {
     return (
-      <div className="glass-1 flex h-full w-14 flex-col items-center gap-2 py-3">
+      <div
+        data-intercept-surface={surface}
+        className="glass-1 flex h-full w-14 flex-col items-center gap-2 py-3"
+      >
         <button
           onClick={onToggleCollapsed}
           aria-label="Expand sidebar"
@@ -274,7 +277,10 @@ export default function CommandSidebar({
 
   // ── expanded: the full single column ──────────────────────────────────────
   return (
-    <div className="glass-1 flex h-full w-64 flex-col">
+    <div
+      data-intercept-surface={surface}
+      className="glass-1 flex h-full w-64 flex-col"
+    >
       {/* brand + collapse */}
       <div className="flex items-center justify-between px-3.5 pt-3.5 pb-2">
         <button onClick={onHome} className="flex items-center gap-2" aria-label="INTERCEPT home">
@@ -300,7 +306,7 @@ export default function CommandSidebar({
       {/* BLIP — centered, bigger, and ALIVE (the same reactive sprite/behavior as
           the corner companion: live swarm mood + gaze + the "learned N" glow).
           Only mounted when EXPANDED, so its hooks/queries don't run collapsed. */}
-      <SidebarBlip focusedRunId={focusedRunId} conversationId={activeId} />
+      <SidebarBlip focusedRunId={focusedRunId} conversationId={activeId} surface={surface} />
 
       {/* NAV — Home, the 7 tracks, the brain */}
       <nav aria-label="Tracks" className="px-2 pt-1">
@@ -563,15 +569,20 @@ const SIDEBAR_STATUS: Record<
 function SidebarBlip({
   focusedRunId,
   conversationId,
+  surface,
 }: {
   focusedRunId: Id<"runs"> | null;
   conversationId: Id<"conversations"> | null;
+  surface: "dashboard" | "workspace";
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const gaze = useBlipGaze(wrapRef);
+  // Map the page surface → Blip's suggestion bucket so the hint matches the view:
+  // the landing reads as "dashboard"; any workspace/board reads as "board".
   const { state, speech, dismissSpeech, busy } = useBlipReactions({
     runId: focusedRunId,
     conversationId,
+    surface: surface === "dashboard" ? "dashboard" : "board",
   });
   const { brain } = useBlipIntel({ runId: focusedRunId, conversationId });
 

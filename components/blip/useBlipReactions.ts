@@ -28,14 +28,21 @@
  * Pass the focused `runId` and/or `conversationId` for the richer per-run wins
  * and the event-feed one-liners.
  *
- * ALIVE TO THE WHOLE PAGE (not just the swarm): this hook also adds two layers so
- * Blip reacts to EVERY interaction across the app, like the original mascot —
- * minus the heavy whole-body locomotion:
- *   • GLOBAL INTERACTION REACTIVITY — a throttled, SILENT micro-beat (a quick
- *     nod on a click, a peek on a keypress / scroll) acknowledges activity
- *     anywhere on the page. Shared single throttle so it never chatters; sits
- *     BELOW the swarm one-shots so a real win/worry is never stomped by a click.
- *   • SPEAKS CONTEXTUALLY — listens for `window` event "intercept:blip-say"
+ * ALIVE TO THE WHOLE PAGE (not just the swarm): this hook makes Blip GUIDE you
+ * like the original "Acey" mascot — minus the heavy whole-body locomotion:
+ *   • GUIDES ON INTERACTION — the instant you touch ANYTHING (click, key, scroll,
+ *     or hover an interactive element) Blip surfaces a short, CONTEXTUAL suggestion
+ *     bubble ("Pick a play — or paste a company URL ↘"). It fires IMMEDIATELY on
+ *     the first touch after a quiet stretch (so it's obviously alive), then is
+ *     throttled to ~1 per 8s so it's never spammy. Buckets (dashboard / board /
+ *     idle) come from a surface hint or the DOM — see ./blipSuggestions. When a
+ *     suggestion is throttled out, the touch still gets a tiny SILENT micro-beat so
+ *     Blip stays responsive. Sits BELOW the swarm one-shots, so a real win/worry is
+ *     never stomped by a hint.
+ *   • PROACTIVE IDLE TIPS — with no interaction at all, Blip still offers a first
+ *     friendly tip ~4s after landing, then rotates a tip on a slow cadence while
+ *     genuinely idle. Timer-driven in an effect → post-mount only, SSR-safe.
+ *   • SPEAKS ON DEMAND — listens for `window` event "intercept:blip-say"
  *     ({ detail: { text, mood? } }) and shows that line in the speech bubble (the
  *     dashboard's 24/7 toggle dispatches this). Plus ambient one-liners on key
  *     moments: a play fired ("on it 🚀"), a run completed, the brain learned N.
@@ -53,6 +60,11 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { BlipState } from "./Blip";
+import {
+  detectBlipContext,
+  pickSuggestion,
+  type BlipContext,
+} from "./blipSuggestions";
 
 /** One-shot beats auto-return to the resolved base (idle/thinking) after this
  *  long, so the beat reads, then resolves. */
@@ -64,13 +76,29 @@ const HOT_INTENT = 80;
 const HOT_VIRALITY = 80;
 
 /** A SILENT "acknowledge you" micro-beat plays this briefly on a page interaction
- *  (click / key / scroll) — short, so it settles right back to thinking/idle. */
+ *  (click / key / scroll / hover) — short, so it settles right back to thinking/idle. */
 const INTERACTION_BEAT_MS = 720;
 /** At most one interaction micro-beat per this window — the "don't be annoying"
- *  throttle. ALL interaction channels (click/key/scroll) share this single gate. */
+ *  throttle. ALL interaction channels (click/key/scroll/hover) share this gate. */
 const INTERACTION_THROTTLE_MS = 2600;
 /** "Learned something" bubbles are rate-limited to this so a fact-burst can't spam. */
 const LEARNED_THROTTLE_MS = 30000;
+
+/** A CONTEXTUAL suggestion bubble ("Acey" guide). On the FIRST interaction after
+ *  a quiet period it surfaces immediately (so it's obvious Blip is alive); repeats
+ *  are then gated to ~1 per this window so it's never spammy. */
+const SUGGESTION_THROTTLE_MS = 8000;
+/** A suggestion bubble lingers a touch longer than an ambient one-liner so the
+ *  hint is readable, then auto-dismisses (tapping it dismisses early). */
+const SUGGESTION_MS = 5200;
+/** The gentle "talking" pose that accompanies a suggestion, then settles back. */
+const SUGGESTION_POSE_MS = 1400;
+/** If the user just lands and does nothing, Blip offers a first idle tip this soon
+ *  after mount — a proactive, friendly hello (post-mount only → SSR-safe). */
+const IDLE_FIRST_MS = 4000;
+/** While genuinely idle, Blip rotates a fresh tip on this slow cadence. Doubles as
+ *  the "quiet period" threshold for the idle tick (won't fire right after activity). */
+const IDLE_ROTATE_MS = 22000;
 
 /** Poses an `intercept:blip-say` payload may request (anything else → "talking"). */
 const SAY_MOODS = new Set<BlipState>([
@@ -94,6 +122,17 @@ interface PostRow { _id: string; viralityScore?: number }
 interface CreativeRow { _id: string }
 interface EventRow { _id: string; kind: string; message: string; createdAt: number }
 
+/** True when the OS asks to reduce motion. SSR-safe; decorative POSES are skipped
+ *  when set, but informational TEXT (suggestions) still shows — hints are content,
+ *  not motion, so reduced-motion users keep the guidance, minus the bounce. */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    !!window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 export interface BlipReaction {
   /** The mood to feed into <Blip state={...} />. */
   state: BlipState;
@@ -112,12 +151,23 @@ interface UseBlipReactionsOptions {
   conversationId?: Id<"conversations"> | null;
   /** Master switch (default true). When false, the blip just idles. */
   enabled?: boolean;
+  /**
+   * OPTIONAL on-screen surface hint for context-aware suggestions. The sidebar
+   * knows its own surface and passes it ("dashboard" | "board"); the floating
+   * companion omits it and the engine reads it off the DOM (best-effort).
+   */
+  surface?: BlipContext | null;
 }
 
 export function useBlipReactions(
   options: UseBlipReactionsOptions = {},
 ): BlipReaction {
-  const { runId = null, conversationId = null, enabled = true } = options;
+  const {
+    runId = null,
+    conversationId = null,
+    enabled = true,
+    surface = null,
+  } = options;
 
   // ----- live subscriptions (all reactive; "skip" when an id is absent) -----
   const runs = useQuery(api.runs.listRuns, enabled ? {} : "skip") as
@@ -162,6 +212,8 @@ export function useBlipReactions(
   // Guards read by listeners (which close over render-time values) for fresh timing:
   const oneShotUntil = useRef(0); // a swarm one-shot owns the sprite until this ts
   const lastInteractAt = useRef(0); // shared throttle gate across all interactions
+  const lastSuggestAt = useRef(0); // throttle gate for CONTEXTUAL suggestion bubbles
+  const lastSuggestLine = useRef<string | null>(null); // avoid back-to-back repeats
 
   const fire = useCallback((state: BlipState, line?: string | null) => {
     setOneShot(state);
@@ -188,6 +240,7 @@ export function useBlipReactions(
     if (now < oneShotUntil.current) return; // don't stomp a win / worry
     if (now - lastInteractAt.current < INTERACTION_THROTTLE_MS) return;
     if (typeof document !== "undefined" && document.hidden) return;
+    if (prefersReducedMotion()) return; // silent decorative beat — skip under RM
     lastInteractAt.current = now;
     setInteractionBeat(beat);
     if (interactionTimer.current) clearTimeout(interactionTimer.current);
@@ -196,6 +249,44 @@ export function useBlipReactions(
       INTERACTION_BEAT_MS,
     );
   }, []);
+
+  // Show a CONTEXTUAL suggestion bubble: the friendly "Acey" line (text) plus a
+  // gentle talking pose. The text always shows (it's content); the pose is skipped
+  // under reduced-motion. Shares the speech slot so a real win can override it.
+  const speakSuggestion = useCallback((line: string) => {
+    setSpeech(line);
+    if (speechTimer.current) clearTimeout(speechTimer.current);
+    speechTimer.current = setTimeout(() => setSpeech(null), SUGGESTION_MS);
+    if (prefersReducedMotion()) return; // text only — no decorative pose under RM
+    setInteractionBeat("talking");
+    if (interactionTimer.current) clearTimeout(interactionTimer.current);
+    interactionTimer.current = setTimeout(
+      () => setInteractionBeat(null),
+      SUGGESTION_POSE_MS,
+    );
+  }, []);
+
+  // Try to surface a context-aware suggestion. Returns true if one fired. Gated so
+  // it: (a) never stomps a live win/worry, (b) skips while the tab is hidden, and
+  // (c) fires at most once per SUGGESTION_THROTTLE_MS — but immediately on the
+  // FIRST interaction after a quiet period (lastSuggestAt seeds at 0), so the very
+  // first click/scroll on the default view visibly pops a bubble. Picks the bucket
+  // from the surface hint (sidebar) or the DOM (companion); best-effort + graceful.
+  const maybeSuggest = useCallback((): boolean => {
+    const now = Date.now();
+    if (typeof document !== "undefined" && document.hidden) return false;
+    if (now < oneShotUntil.current) return false; // a real win/worry owns the sprite
+    if (now - lastSuggestAt.current < SUGGESTION_THROTTLE_MS) return false;
+    const pick = pickSuggestion(
+      detectBlipContext(surface),
+      lastSuggestLine.current,
+    );
+    if (!pick) return false;
+    lastSuggestAt.current = now;
+    lastSuggestLine.current = pick.text;
+    speakSuggestion(pick.text);
+    return true;
+  }, [surface, speakSuggestion]);
 
   useEffect(
     () => () => {
@@ -207,18 +298,18 @@ export function useBlipReactions(
   );
 
   // ----- GLOBAL PAGE-INTERACTION REACTIVITY -----------------------------------
-  // Blip stays alive to the WHOLE app: a throttled, silent micro-beat acknowledges
-  // clicks, key actions and scrolls anywhere on the page (the original mascot's
-  // "reacts to every interaction" feel, minus the heavy whole-body locomotion).
-  // All channels share ONE throttle gate (pulse()), so it can never get annoying.
+  // Blip guides you like the original "Acey": the instant you touch ANYTHING —
+  // click, key, scroll, or hover an interactive element — it surfaces a short,
+  // CONTEXTUAL suggestion bubble (maybeSuggest). Immediate on the first touch
+  // after a quiet stretch (so it's obviously alive), then throttled to ~1 / 8s so
+  // it's never spammy. When a suggestion is throttled out, the interaction still
+  // gets a tiny SILENT micro-beat (pulse) so Blip always feels responsive.
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
-    const reduced =
-      !!window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) return; // honor reduced-motion: no decorative interaction beats
 
-    const onPointerDown = () => pulse("nod"); // a click → a small acknowledging nod
+    const onPointerDown = () => {
+      if (!maybeSuggest()) pulse("nod"); // a click → a hint, else a small nod
+    };
     const onKeyDown = (e: KeyboardEvent) => {
       // ignore lone modifier keys so a chord prefix (⌘/Ctrl/Alt/Shift) is no beat
       if (
@@ -228,9 +319,25 @@ export function useBlipReactions(
         e.key === "Meta"
       )
         return;
-      pulse("peek"); // a keypress → a quick glance
+      if (!maybeSuggest()) pulse("peek"); // a keypress → a hint, else a glance
     };
-    const onScroll = () => pulse("peek"); // scrolling → a brief glance
+    const onScroll = () => {
+      if (!maybeSuggest()) pulse("peek"); // scrolling → a hint, else a glance
+    };
+    // Hovering an INTERACTIVE element is a strong "about to act" signal — a great
+    // moment for a next-step nudge. Cheap closest() check; the throttle does the
+    // rest, so sweeping the cursor across the UI never chatters.
+    const onPointerOver = (e: Event) => {
+      const t = e.target as Element | null;
+      if (!t || typeof t.closest !== "function") return;
+      if (
+        !t.closest(
+          'a, button, [role="button"], [role="tab"], input, textarea, select, label, [data-track]',
+        )
+      )
+        return;
+      if (!maybeSuggest()) pulse("peek");
+    };
 
     window.addEventListener("pointerdown", onPointerDown, {
       passive: true,
@@ -241,12 +348,46 @@ export function useBlipReactions(
       passive: true,
       capture: true,
     });
+    window.addEventListener("pointerover", onPointerOver, {
+      passive: true,
+      capture: true,
+    });
     return () => {
       window.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("pointerover", onPointerOver, true);
     };
-  }, [enabled, pulse]);
+  }, [enabled, maybeSuggest, pulse]);
+
+  // ----- IDLE ROTATION (proactive, gentle) ------------------------------------
+  // Even with no interaction, Blip keeps you company: a first friendly tip ~4s
+  // after landing, then a fresh rotating tip on a slow cadence — but ONLY while
+  // genuinely idle (nothing said recently, no live win, tab visible). Post-mount
+  // only (timer in an effect) → SSR-safe, no hydration mismatch.
+  useEffect(() => {
+    if (!enabled || typeof window === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = () => {
+      const now = Date.now();
+      const quiet = now - lastSuggestAt.current >= IDLE_ROTATE_MS;
+      const free = now >= oneShotUntil.current;
+      const visible = !(typeof document !== "undefined" && document.hidden);
+      if (quiet && free && visible) {
+        const pick = pickSuggestion("idle", lastSuggestLine.current);
+        if (pick) {
+          lastSuggestAt.current = now;
+          lastSuggestLine.current = pick.text;
+          speakSuggestion(pick.text);
+        }
+      }
+      timer = setTimeout(tick, IDLE_ROTATE_MS);
+    };
+    timer = setTimeout(tick, IDLE_FIRST_MS);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [enabled, speakSuggestion]);
 
   // ----- Blip SPEAKS contextually (window event) ------------------------------
   // Any part of the app can make Blip say something:
