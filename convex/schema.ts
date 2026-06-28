@@ -119,4 +119,19 @@ export default defineSchema({
     positioning: v.string(),
     generatedAt: v.number(),
   }).index("by_run", ["runId"]),
+
+  // Competitor ad intelligence from the Meta Ad Library (AI Ad Factories angle):
+  // which of a competitor's ads are live + how long they've run (a proxy for
+  // "this creative is working"), so INTERCEPT can mirror the winning angle.
+  ads: defineTable({
+    runId: v.id("runs"),
+    advertiser: v.string(),
+    platform: v.string(), // facebook | instagram | audience_network
+    text: v.string(), // ad copy / primary text
+    imageUrl: v.optional(v.string()),
+    runningSince: v.optional(v.string()), // ISO date the ad started
+    daysRunning: v.optional(v.number()), // longevity = proxy for a winning ad
+    status: v.string(), // active | inactive
+    url: v.string(), // permalink into the Ad Library
+  }).index("by_run", ["runId"]),
 });
