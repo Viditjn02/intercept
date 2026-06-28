@@ -29,6 +29,7 @@ import AdFactoryPanel from "./AdFactoryPanel";
 import CreativePanel from "./CreativePanel";
 import BrainPanel from "./BrainPanel";
 import BrainCanvas from "./BrainCanvas";
+import RadarPanel from "./RadarPanel";
 import PanelBoundary from "./ErrorBoundary";
 import ContentCalendar from "./ContentCalendar";
 import PitchLab from "./PitchLab";
@@ -48,11 +49,13 @@ import type { CampaignDoc, ChatMessageDoc } from "./types";
 // clutter. The swarm tiles + live event feed frame every capability.
 // ============================================================================
 
-// The canvas has two lenses: the live `run` work surface (default) and the
-// `brain` — the compounding knowledge board. `view`/`onView` are optional so the
-// panel still works standalone; when supplied (by the page) the left-rail Brain
-// item can drive the lens too.
-export type CanvasView = "run" | "brain";
+// The canvas has three lenses: the live `run` work surface (default), the
+// `brain` — the compounding knowledge board — and the `radar` — the global
+// "us-vs-the-field" hackathon report. `view`/`onView` are optional so the panel
+// still works standalone; when supplied (by the page) the left-rail Brain / Radar
+// items can drive the lens too. `brain` + `radar` render independently of any
+// focused run / target.
+export type CanvasView = "run" | "brain" | "radar";
 
 interface CanvasPanelProps {
   conversationId: Id<"conversations"> | null;
@@ -224,9 +227,11 @@ export default function CanvasPanel({
   const morphKey =
     view === "brain"
       ? "brain"
-      : activeRun
-        ? `run:${activeRun.runId}`
-        : "empty";
+      : view === "radar"
+        ? "radar"
+        : activeRun
+          ? `run:${activeRun.runId}`
+          : "empty";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -247,6 +252,13 @@ export default function CanvasPanel({
             // until then PanelBoundary shows a calm fallback instead of crashing.
             <PanelBoundary label="Waking the brain…">
               <BrainCanvas />
+            </PanelBoundary>
+          ) : view === "radar" ? (
+            // The hackathon radar — a global, run-independent surface. Renders
+            // regardless of the focused run / target; binds once its Convex module
+            // deploys, and PanelBoundary stays calm until then.
+            <PanelBoundary label="Tuning the radar…">
+              <RadarPanel />
             </PanelBoundary>
           ) : activeRun ? (
             <CanvasForRun
@@ -422,9 +434,9 @@ function ModeIdentityPill({
 
   const inRun = view === "run" && !!activeRun;
   const meta = inRun ? modeMeta(activeRun!.intent) : null;
-  const label = inRun ? meta!.label : "Brain";
-  const board = inRun ? meta!.board : "Knowledge";
-  const dot = inRun ? meta!.dot : "bg-block-navy";
+  const label = inRun ? meta!.label : view === "radar" ? "Radar" : "Brain";
+  const board = inRun ? meta!.board : view === "radar" ? "Field" : "Knowledge";
+  const dot = inRun ? meta!.dot : view === "radar" ? "bg-block-coral" : "bg-block-navy";
 
   return (
     <div ref={rootRef} className="relative">
@@ -517,6 +529,23 @@ function ModeIdentityPill({
             <span className="truncate text-ink">Brain</span>
             <span className="ml-auto shrink-0 text-[10.5px] text-ink/45">
               Knowledge
+            </span>
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => {
+              onView("radar");
+              setOpen(false);
+            }}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] transition-colors",
+              view === "radar" ? "bg-surface-soft" : "hover:bg-surface-soft/70",
+            )}
+          >
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-block-coral" />
+            <span className="truncate text-ink">Radar</span>
+            <span className="ml-auto shrink-0 text-[10.5px] text-ink/45">
+              Field
             </span>
           </button>
         </div>

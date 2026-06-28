@@ -102,6 +102,14 @@ export default function Home() {
     setSurface("workspace");
   }, []);
 
+  // The hackathon radar — its own global surface (like the Brain lens). It's
+  // independent of the focused run / target, so we don't touch focusedRunId /
+  // activeTrack; just flip the canvas to the radar lens in the workspace.
+  const openRadar = useCallback(() => {
+    setCanvasView("radar");
+    setSurface("workspace");
+  }, []);
+
   // A focused run changed inside the canvas (its mode switcher) — keep the
   // sidebar's active track in sync.
   const focusRun = useCallback((runId: Id<"runs"> | undefined, intent?: string) => {
@@ -194,6 +202,8 @@ export default function Home() {
           activeTrack={activeTrack}
           brainActive={surface === "workspace" && canvasView === "brain"}
           onOpenBrain={openBrain}
+          radarActive={surface === "workspace" && canvasView === "radar"}
+          onOpenRadar={openRadar}
           focusedRunId={focusedRunId}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}

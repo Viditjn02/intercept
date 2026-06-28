@@ -94,6 +94,10 @@ interface CommandSidebarProps {
   brainActive?: boolean;
   /** Open the compounding-knowledge brain board. */
   onOpenBrain: () => void;
+  /** Whether the canvas is showing the hackathon-radar lens. */
+  radarActive?: boolean;
+  /** Open the global hackathon radar (us-vs-the-field) surface. */
+  onOpenRadar: () => void;
   /** The run powering Blip's live ping; pulses while it is running. */
   focusedRunId?: Id<"runs"> | null;
   /** Collapsed → a thin icon rail; expanded → the full column. */
@@ -132,6 +136,8 @@ export default function CommandSidebar({
   activeTrack = null,
   brainActive = false,
   onOpenBrain,
+  radarActive = false,
+  onOpenRadar,
   focusedRunId = null,
   collapsed,
   onToggleCollapsed,
@@ -251,6 +257,18 @@ export default function CommandSidebar({
           <span aria-hidden className={cn("absolute inset-0 rounded-xl bg-block-lilac transition-opacity", brainActive ? "opacity-30" : "opacity-0")} />
           <BrainIcon className="relative h-[18px] w-[18px]" />
         </button>
+        <button
+          onClick={onOpenRadar}
+          aria-label="Hackathon Radar"
+          aria-current={radarActive ? "page" : undefined}
+          className={cn(
+            "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+            radarActive ? "text-ink" : "text-ink/55 hover:bg-canvas/60 hover:text-ink",
+          )}
+        >
+          <span aria-hidden className={cn("absolute inset-0 rounded-xl bg-block-coral transition-opacity", radarActive ? "opacity-30" : "opacity-0")} />
+          <RadarIcon className="relative h-[18px] w-[18px]" />
+        </button>
         <div className="mt-auto flex flex-col items-center gap-2">
           <button
             onClick={onNewChat}
@@ -342,6 +360,14 @@ export default function CommandSidebar({
           accent="bg-block-lilac"
           icon={<BrainIcon className="h-4 w-4" />}
           onClick={onOpenBrain}
+        />
+        <NavRow
+          label="Hackathon Radar"
+          sublabel="Us vs. the field"
+          active={radarActive}
+          accent="bg-block-coral"
+          icon={<RadarIcon className="h-4 w-4" />}
+          onClick={onOpenRadar}
         />
       </nav>
 
@@ -685,6 +711,16 @@ function BrainIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>
       <path d="M9 4.5a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0-1 4.8A2.5 2.5 0 0 0 7 16.5a2.5 2.5 0 0 0 5 .5V6.5A2.5 2.5 0 0 0 9 4.5ZM15 4.5A2.5 2.5 0 0 1 17.5 7a2.5 2.5 0 0 1 1 4.8A2.5 2.5 0 0 1 17 16.5a2.5 2.5 0 0 1-5 .5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function RadarIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M12 12 18.5 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 4a8 8 0 1 0 8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 8a4 4 0 1 0 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" />
     </svg>
   );
 }
