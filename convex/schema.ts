@@ -735,4 +735,81 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_updated", ["updatedAt"]),
+
+  // ==========================================================================
+  // HACKATHON RADAR — "us vs. the field". INTERCEPT turns its own GTM engine on
+  // the YC AI Growth Hackathon submissions (vibeapps.dev tag page): scrape each
+  // project, dissect its repo, and cache an honest comparison report.
+  //
+  // Field shapes MIRROR lib/radar.ts (RadarProject / RadarReport) so the action
+  // and any UI bind verbatim. Both tables are LATEST-WINS by `runKey` / `key`:
+  // `convex/hackathonRadar.runRadar` clears the prior run's projects and upserts
+  // the single latest report. Every "may be unknown" field is OPTIONAL so a
+  // scrape-only card (no repo) still renders — honest, never hallucinated.
+  // ==========================================================================
+
+  // One row per submitted project on the field (newest run wins).
+  radarProjects: defineTable({
+    runKey: v.string(), // groups a single runRadar invocation's rows
+    name: v.string(),
+    tagline: v.optional(v.string()),
+    demoUrl: v.optional(v.string()),
+    githubUrl: v.optional(v.string()),
+    owner: v.optional(v.string()),
+    repo: v.optional(v.string()),
+    author: v.optional(v.string()),
+    whatItDoes: v.optional(v.string()),
+    stack: v.optional(v.array(v.string())),
+    maturity: v.string(), // RadarMaturity: unknown|empty|placeholder|prototype|mvp|production
+    standoutFeatures: v.optional(v.array(v.string())),
+    threatLevel: v.number(), // 0-100 overlap with INTERCEPT's space
+    // provenance / honesty
+    analyzedFromRepo: v.optional(v.boolean()),
+    repoStars: v.optional(v.number()),
+    repoEmpty: v.optional(v.boolean()),
+    confidence: v.optional(v.number()),
+    note: v.optional(v.string()),
+    generatedAt: v.number(),
+  })
+    .index("by_run", ["runKey"])
+    .index("by_generated", ["generatedAt"]),
+
+  // The single latest cached "us-vs-the-field" report (keyed "latest").
+  radarReports: defineTable({
+    key: v.string(), // always "latest" (single latest-wins row)
+    generatedAt: v.number(),
+    fieldSize: v.number(),
+    ranked: v.array(
+      v.object({
+        name: v.string(),
+        score: v.number(), // 0-100 strength on the field
+        oneLiner: v.string(),
+      }),
+    ),
+    ourStrengths: v.array(v.string()),
+    ourGaps: v.array(v.string()),
+    featuresToBorrow: v.array(
+      v.object({
+        feature: v.string(),
+        sourceProject: v.string(),
+        sourceRepoUrl: v.string(),
+        why: v.string(),
+        effort: v.string(), // low|medium|high
+      }),
+    ),
+    summary: v.string(),
+    // provenance — how the report was produced (so it can be trusted).
+    tagUrl: v.optional(v.string()),
+    analyzedCount: v.optional(v.number()),
+    cappedCount: v.optional(v.number()),
+    provenance: v.optional(
+      v.object({
+        githubTokenPresent: v.boolean(),
+        openaiPresent: v.boolean(),
+        supadataPresent: v.boolean(),
+        reposAnalyzed: v.number(),
+        emptyReposLabeled: v.number(),
+      }),
+    ),
+  }).index("by_key", ["key"]),
 });

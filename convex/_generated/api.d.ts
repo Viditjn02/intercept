@@ -42,6 +42,7 @@ import type * as emailDesign from "../emailDesign.js";
 import type * as emails from "../emails.js";
 import type * as enrich_emailGuess from "../enrich/emailGuess.js";
 import type * as events from "../events.js";
+import type * as hackathonRadar from "../hackathonRadar.js";
 import type * as http from "../http.js";
 import type * as knowledge from "../knowledge.js";
 import type * as linkScan from "../linkScan.js";
@@ -99,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   emails: typeof emails;
   "enrich/emailGuess": typeof enrich_emailGuess;
   events: typeof events;
+  hackathonRadar: typeof hackathonRadar;
   http: typeof http;
   knowledge: typeof knowledge;
   linkScan: typeof linkScan;
