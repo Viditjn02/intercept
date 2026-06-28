@@ -14,6 +14,7 @@ import DashboardHome from "@/components/DashboardHome";
 import QuickActions from "@/components/QuickActions";
 import CommandBar from "@/components/CommandBar";
 import EmailDesigner from "@/components/EmailDesigner";
+import TargetGate from "@/components/TargetGate";
 import { sendMessageRef } from "@/components/chatApi";
 import { type Capability, type Intent, spawnsRun } from "@/lib/contract";
 import { cn } from "@/lib/utils";
@@ -318,6 +319,11 @@ export default function Home() {
       {/* Email Designer — a global drawer; opens on the outreach "Design email"
           action (intercept:open-email-designer). Renders nothing until then. */}
       <EmailDesigner />
+
+      {/* Target Gate — the PUBLIC-ONLY welcome overlay. Self-gates on
+          NEXT_PUBLIC_PUBLIC_MODE === "1" + an unconfigured browser, so on local
+          (env unset) and for returning visitors it renders NOTHING. */}
+      <TargetGate />
     </main>
   );
 }

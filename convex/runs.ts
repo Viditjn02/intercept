@@ -76,7 +76,10 @@ const agentStatusValidator = v.union(
 // free to re-run; runs with provenance (sourceUrl/groundedOnAdId/replay) or a
 // campaign, and the side-effectful `outreach` intent, are never deduped.
 // ---------------------------------------------------------------------------
-const REUSE_TTL_MS = 30 * 60_000; // 30 min
+// 30 min by default. The LOCAL demo deployment sets RUN_REUSE_TTL_MS to a long
+// window (env, local only) so a pre-warmed target like nolongerjobless.com fires
+// straight from the cached completed run — instant, killer-demo reuse.
+const REUSE_TTL_MS = Number(process.env.RUN_REUSE_TTL_MS) || 30 * 60_000;
 
 /** Normalize a run target to a stable key (host/name) for dedupe + cache match. */
 function normalizeTarget(input: string): string {
@@ -437,7 +440,7 @@ export const completeRun = internalMutation({
 // (or a stale entry) just recomputes. Consumed by the enrich agent. (Competitor
 // ad discovery is already cached separately via `adScanCache`.)
 // ---------------------------------------------------------------------------
-const STEP_CACHE_TTL_MS = 30 * 60_000; // 30 min — match the run-reuse window
+const STEP_CACHE_TTL_MS = Number(process.env.STEP_CACHE_TTL_MS) || 30 * 60_000; // 30 min default; local demo extends via env to match the run-reuse window
 
 /** Build the `${step}:${target}` cache key with a normalized target. */
 function stepCacheKey(step: string, target: string): string {
