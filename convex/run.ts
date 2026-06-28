@@ -47,10 +47,18 @@ function competitorReelUrl(): string | undefined {
 }
 
 // Per-agent extra arguments threaded into the agent's `run` action.
-function agentArgs(name: string): Record<string, unknown> {
+function agentArgs(name: string, run: Doc<"runs">): Record<string, unknown> {
   if (name === "watcher") {
     const reelUrl = competitorReelUrl();
     return reelUrl ? { reelUrl } : {};
+  }
+  // adsmith reads the run's AD FACTORY provenance: the dropped URL to replicate
+  // (flow c) and/or the scanned ad a "Generate similar" run is grounded on (flow b).
+  if (name === "adsmith") {
+    const args: Record<string, unknown> = {};
+    if (run.sourceUrl) args.sourceUrl = run.sourceUrl;
+    if (run.groundedOnAdId) args.groundedOnAdId = run.groundedOnAdId;
+    return args;
   }
   return {};
 }
@@ -78,7 +86,7 @@ async function runAgent(
 ): Promise<void> {
   const runId: Id<"runs"> = run._id;
   const isBoard = BOARD_AGENTS.has(name);
-  const extraArgs = agentArgs(name);
+  const extraArgs = agentArgs(name, run);
 
   // Honor skipVideo: a 24/7 monitor tick spawns the run with skipVideo=true so
   // the background swarm never burns Veo credits. Mark the creative lane

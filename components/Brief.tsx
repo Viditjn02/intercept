@@ -7,8 +7,8 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import ThreadCard from "./ThreadCard";
 import ApprovalModal from "./ApprovalModal";
 import CreativePanel from "./CreativePanel";
-import CompetitorAds from "./CompetitorAds";
-import DesignPanel from "./DesignPanel";
+import AdGallery from "./AdGallery";
+import AdFactoryPanel from "./AdFactoryPanel";
 import BrainPanel from "./BrainPanel";
 
 // ============================================================================
@@ -174,8 +174,8 @@ export default function Brief({ runId }: BriefProps) {
       </section>
 
       {/* ───────────────── AI Ad Factories — competitor intel + generated assets ───────────────── */}
-      <CompetitorAds runId={runId} />
-      <DesignPanel runId={runId} />
+      <AdGallery runId={runId} />
+      <AdFactoryPanel runId={runId} />
 
       {/* ───────────────── Creative ───────────────── */}
       <CreativePanel runId={runId} />

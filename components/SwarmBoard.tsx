@@ -136,12 +136,13 @@ const AGENT_META: Record<AgentId, { tagline: string; icon: ReactElement }> = {
       </>,
     ),
   },
-  designer: {
-    tagline: "Designing the landing page + ad copy",
+  adsmith: {
+    tagline: "Forging a similar ad — image + copy + variations",
     icon: icon(
       <>
         <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        <circle cx="9" cy="9" r="2" stroke="currentColor" strokeWidth="1.6" />
+        <path d="m20 16-5-5L4 20" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       </>,
     ),
   },

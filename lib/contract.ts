@@ -25,8 +25,9 @@ export type Intent =
   | "discovery" // community/thread intent radar — THE MOAT
   | "outbound" // find companies + decision-makers + draft emails
   | "outreach" // act: send / follow up approved drafts
-  | "content" // video ad + landing page + ad copy
-  | "competitor" // Meta Ad Library winning-ad intel
+  | "content" // AD FACTORY (create): similar ad — image + copy + variations + video
+  | "competitor" // AD INTELLIGENCE (scan): multi-platform ad scan + scoring
+  | "replicate" // drop a post/ad URL → improved replica (copy + image + variations)
   | "social" // algorithm hacking: trend scan + viral posts + reel + calendar
   | "onboarding" // zero-to-one PLG: generate an in-app onboarding flow/tour
   | "brain" // gbrain recall — answered inline, no run
@@ -39,6 +40,7 @@ export const INTENTS: readonly Intent[] = [
   "outreach",
   "content",
   "competitor",
+  "replicate",
   "social",
   "onboarding",
   "brain",
@@ -54,6 +56,7 @@ export const CAPABILITIES: readonly Capability[] = [
   "outreach",
   "content",
   "competitor",
+  "replicate",
   "social",
   "onboarding",
 ] as const;
@@ -78,9 +81,9 @@ export type AgentId =
   | "writer" // write signal-grounded outbound emails
   | "sender" // send approved emails via AgentMail (the human-approval gate)
   | "follower" // detect replies + schedule/write follow-ups
-  | "adscout" // Meta Ad Library → competitor winning ads
+  | "adscout" // multi-platform ad scan + per-ad performance scoring (SCAN)
   | "creative" // Veo / fal-LTX video ad
-  | "designer" // landing page + ad copy
+  | "adsmith" // similar ad: AI image + copy + variations (CREATE / REPLICATE)
   | "watcher" // competitor reel teardown (when a reel is configured)
   // --- Track 1: ALGORITHM HACKING (social / virality engine) ---
   | "trendscout" // live trend + topic scan (Exa → HN/Reddit fallback)
@@ -110,9 +113,9 @@ export const AGENT_REGISTRY: Readonly<Record<AgentId, AgentSpec>> = {
   writer: { id: "writer", label: "Writer", capability: "outbound", board: true, blurb: "Signal-grounded emails." },
   sender: { id: "sender", label: "Sender", capability: "outreach", board: true, blurb: "Sending via AgentMail." },
   follower: { id: "follower", label: "Follower", capability: "outreach", board: true, blurb: "Replies + follow-ups." },
-  adscout: { id: "adscout", label: "Ad Scout", capability: "competitor", board: true, blurb: "Meta Ad Library teardown." },
+  adscout: { id: "adscout", label: "Ad Scout", capability: "competitor", board: true, blurb: "Multi-platform ad scan + scoring." },
   creative: { id: "creative", label: "Creative", capability: "content", board: true, blurb: "Veo video ad." },
-  designer: { id: "designer", label: "Designer", capability: "content", board: true, blurb: "Landing + ad copy." },
+  adsmith: { id: "adsmith", label: "Ad Smith", capability: "content", board: true, blurb: "Similar ad: image + copy + variations." },
   watcher: { id: "watcher", label: "Watcher", capability: "competitor", board: false, blurb: "Competitor reel teardown." },
   // Track 1 — algorithm hacking (social).
   trendscout: { id: "trendscout", label: "Trend Scout", capability: "social", board: true, blurb: "Live trend + topic scan." },
@@ -139,7 +142,7 @@ export const AGENTS: readonly AgentId[] = [
   "follower",
   "adscout",
   "creative",
-  "designer",
+  "adsmith",
   "watcher",
   "trendscout",
   "composer",
@@ -160,8 +163,8 @@ export type AgentName = AgentId;
 // ----------------------------------------------------------------------------
 export type Phase = readonly AgentId[];
 export const CAPABILITY_PLANS: Readonly<Record<Capability, readonly Phase[]>> = {
-  // Default bare-company sweep — the original full swarm, intact.
-  analyze: [["router"], ["enrich"], ["detective", "adscout"], ["reply", "creative", "designer", "watcher"]],
+  // Default bare-company sweep — full swarm, now grounded by the adscout scan.
+  analyze: [["router"], ["enrich"], ["detective", "adscout"], ["reply", "creative", "adsmith", "watcher"]],
   // Just the moat.
   discovery: [["router"], ["enrich"], ["detective"], ["reply"]],
   // OrangeSlice + Fiber discovery → qualify → draft emails (gated, not sent).
@@ -169,10 +172,13 @@ export const CAPABILITY_PLANS: Readonly<Record<Capability, readonly Phase[]>> = 
   outbound: [["router"], ["enrich"], ["sourcer"], ["qualifier"], ["writer"], ["twin"]],
   // Act on already-approved work: send + follow up. No re-discovery.
   outreach: [["sender"], ["follower"]],
-  // Content factory off the brief.
-  content: [["router"], ["enrich"], ["creative", "designer"]],
-  // Competitor intel only.
+  // AD FACTORY (create) — scan FIRST, then make the image+copy (adsmith) and the
+  // video (creative) in parallel, grounded in the live scan's winning angles.
+  content: [["router"], ["enrich"], ["adscout"], ["adsmith", "creative"]],
+  // AD INTELLIGENCE (scan) — scan + score; watcher optional reel teardown.
   competitor: [["router"], ["enrich"], ["adscout", "watcher"]],
+  // REPLICATE — drop a post/ad URL → improved replica (adsmith reads run.sourceUrl).
+  replicate: [["router"], ["enrich"], ["adsmith"]],
   // Algorithm hacking: trend scan → compose posts + render a reel (parallel) → calendar.
   social: [["router"], ["enrich"], ["trendscout"], ["composer", "reelmaker"], ["calendar"]],
   // Zero-to-one PLG: enrich the product context → generate the onboarding flow.
@@ -242,19 +248,27 @@ export const ROUTER_INTENTS: readonly RouterIntentSpec[] = [
   },
   {
     intent: "competitor",
-    title: "Competitor intel",
+    title: "Ad intelligence (scan)",
     description:
-      "Pull a competitor's currently-running ads from the Meta Ad Library, ranked by run-duration (longevity = a winning angle).",
-    examples: ["what ads is brex running", "show me superhuman's winning ads", "teardown competitor X's creative"],
-    keywords: ["ads is", "ad library", "competitor", "running ads", "teardown", "what are they running", "winning ads", "meta ads"],
+      "Scan a competitor's live ads across Meta + TikTok with NO API token, rank by performance score + run-duration, show active status.",
+    examples: ["what ads is brex running", "scan superhuman's ads", "show me the top ads for competitor X"],
+    keywords: ["ads is", "ad library", "competitor", "running ads", "teardown", "what are they running", "winning ads", "meta ads", "what's working", "top ads", "tiktok ads", "scan ads"],
   },
   {
     intent: "content",
-    title: "Content generation",
+    title: "Ad factory (create)",
     description:
-      "Generate a video ad (Veo / fal-LTX), a landing page, and ad copy from the brief and the buyers' own language.",
-    examples: ["make me a video ad", "build a landing page for this", "write ad copy for the campaign", "generate a launch video"],
-    keywords: ["video", "make me a", "landing page", "ad copy", "creative", "generate a", "write copy", "launch video"],
+      "Generate a similar ad — AI image + primary copy + 3 variations — grounded in the competitor's winning angles, plus a video ad.",
+    examples: ["make me a similar ad for brex", "generate an ad for this", "make an image ad for the campaign", "generate a launch video"],
+    keywords: ["video", "make me a", "ad copy", "creative", "generate a", "write copy", "launch video", "similar ad", "generate an ad", "ad creative", "make an ad", "image ad"],
+  },
+  {
+    intent: "replicate",
+    title: "Replicate + improve",
+    description:
+      "Take a post or ad URL the user drops and produce an improved replica (copy + image + variations).",
+    examples: ["here's an ad, make it better", "replicate this post <url>", "improve this creative"],
+    keywords: ["replicate", "recreate", "improve this", "make this better", "clone this ad", "copy this post"],
   },
   {
     intent: "social",
@@ -572,3 +586,78 @@ export const TWIN_REPLY_THRESHOLD = 50; // replyLikelihood >= this -> "likely to
 // Track 3 — zero-to-one PLG (onboarding).
 export const ONBOARDING_STEP_MIN = 4; // floor on generated tour steps
 export const ONBOARDING_STEP_MAX = 7; // ceiling on generated tour steps
+
+// ----------------------------------------------------------------------------
+// AD FACTORY (QuickAds-style engine) — shared types for the scan/create/replicate
+// flows. adscout SCANS (→ `ads`), adsmith CREATES/REPLICATES (→ `adCreatives`).
+// These are the typed in-memory hand-offs; agents persist their own rows.
+// ----------------------------------------------------------------------------
+export type AdNetwork = "meta" | "tiktok";
+export type AdMediaType = "image" | "video" | "carousel" | "unknown";
+
+/** QuickAds-style 5-axis performance breakdown, 0-100 each. */
+export interface AdScores {
+  hook: number;
+  clarity: number;
+  cta: number;
+  quality: number;
+  engagement: number;
+}
+
+/** A scanned competitor ad (adscout → `ads` table). Most fields optional so a
+ *  thin scan still renders. `source` records which lane surfaced it. */
+export interface ScannedAd {
+  network: AdNetwork;
+  platform: string;
+  advertiser: string;
+  headline?: string;
+  text: string;
+  cta?: string;
+  mediaType: AdMediaType;
+  imageUrl?: string;
+  thumbnailUrl?: string;
+  videoUrl?: string;
+  firstSeen?: string;
+  lastSeen?: string;
+  daysRunning?: number;
+  status: string; // "active" | "inactive"
+  engagement?: { likes?: number; comments?: number; shares?: number };
+  url: string;
+  source: string; // browser_meta | apify_meta | tiktok_radar | apify_tiktok | meta_api
+  perfScore?: number;
+  scores?: AdScores;
+  scalingSignal?: boolean;
+  winningAngle?: string;
+}
+
+/** One copy variation produced by adsmith. */
+export interface AdVariation {
+  headline: string;
+  primaryText: string;
+  cta: string;
+  angle: string;
+}
+
+/** A generated similar/replica ad (adsmith → `adCreatives` table). */
+export interface GeneratedAd {
+  kind: "image_ad" | "replica";
+  groundedOnAdId?: string;
+  sourceUrl?: string;
+  headline: string;
+  primaryText: string;
+  cta: string;
+  variations: AdVariation[];
+  strategy: string;
+  imagePrompt: string;
+  imageUrl?: string;
+  imageStatus: "done" | "degraded" | "failed";
+  degraded: boolean;
+  degradedReason?: string;
+  model: string;
+}
+
+// Ad-factory tuning knobs.
+export const MAX_SCAN_ADS = 12; // gallery cap
+export const AD_VARIATIONS = 3; // copy variations per generated ad
+export const SCAN_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h scan cache
+export const SCALING_MIN_DAYS = 21; // active + ≥21d running ⇒ scalingSignal

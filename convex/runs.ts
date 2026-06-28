@@ -5,6 +5,7 @@ import {
   internalMutation,
   internalQuery,
 } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { FANIN_DEADLINE_MS, boardAgentsForIntent } from "../lib/contract";
@@ -40,6 +41,7 @@ const intentValidator = v.union(
   v.literal("outreach"),
   v.literal("content"),
   v.literal("competitor"),
+  v.literal("replicate"),
   v.literal("social"),
   v.literal("onboarding"),
 );
@@ -72,6 +74,69 @@ const agentStatusValidator = v.union(
  * orchestrator. The fan-in deadline is hard: the board renders from whatever
  * exists at `deadlineAt`.
  */
+interface SpawnRunArgs {
+  intent: Capability;
+  input: string;
+  inputType: Doc<"runs">["inputType"];
+  conversationId?: Id<"conversations">;
+  messageId?: Id<"messages">;
+  campaignId?: Id<"campaigns">;
+  trigger: Doc<"runs">["trigger"];
+  replay?: boolean;
+  skipVideo?: boolean;
+  // AD FACTORY provenance.
+  sourceUrl?: string;
+  groundedOnAdId?: Id<"ads">;
+}
+
+/**
+ * Shared run-spawn core: insert the run, queue one board row per BOARD agent in
+ * the capability's plan, link the spawning message, and schedule the
+ * orchestrator. Used by `createRun` (chat/manual) and `generateSimilar` (the ad
+ * gallery's "Generate similar" button).
+ */
+async function spawnRun(ctx: MutationCtx, args: SpawnRunArgs): Promise<Id<"runs">> {
+  const trimmed = args.input.trim();
+  if (trimmed.length === 0) {
+    throw new Error("spawnRun: input must not be empty");
+  }
+
+  const now = Date.now();
+  const runId: Id<"runs"> = await ctx.db.insert("runs", {
+    conversationId: args.conversationId,
+    messageId: args.messageId,
+    campaignId: args.campaignId,
+    input: trimmed,
+    inputType: args.inputType,
+    intent: args.intent,
+    trigger: args.trigger,
+    status: "running",
+    startedAt: now,
+    deadlineAt: now + FANIN_DEADLINE_MS,
+    replay: args.replay ?? false,
+    skipVideo: args.skipVideo,
+    sourceUrl: args.sourceUrl,
+    groundedOnAdId: args.groundedOnAdId,
+  });
+
+  // One queued board row per BOARD agent in this capability's plan. Silent
+  // agents (router, enrich, reply) run but get no tile.
+  const boardAgents = boardAgentsForIntent(args.intent);
+  for (const agent of boardAgents) {
+    await ctx.db.insert("agentStatus", { runId, agent, status: "queued" });
+  }
+
+  // Link the spawning chat message so the canvas can render this run's board.
+  if (args.messageId) {
+    await ctx.db.patch(args.messageId, { runId, intent: args.intent });
+  }
+
+  // Hand off to the orchestrator. It owns agentStatus + the fan-in deadline.
+  await ctx.scheduler.runAfter(0, internal.run.orchestrate, { runId });
+
+  return runId;
+}
+
 export const createRun = mutation({
   args: {
     intent: intentValidator,
@@ -86,62 +151,49 @@ export const createRun = mutation({
     replay: v.optional(v.boolean()),
     // Background (cron) ticks skip the Veo render so they don't burn credits.
     skipVideo: v.optional(v.boolean()),
+    // AD FACTORY: a dropped post/ad URL to replicate (flow c).
+    sourceUrl: v.optional(v.string()),
+    // AD FACTORY: the scanned ad a "Generate similar" run is grounded on (flow b).
+    groundedOnAdId: v.optional(v.id("ads")),
   },
-  handler: async (
-    ctx,
-    {
-      intent,
-      input,
-      inputType,
-      conversationId,
-      messageId,
-      campaignId,
-      trigger,
-      replay,
-      skipVideo,
-    },
-  ): Promise<Id<"runs">> => {
-    const trimmed = input.trim();
-    if (trimmed.length === 0) {
-      throw new Error("createRun: input must not be empty");
-    }
-
-    const now = Date.now();
-    const runId: Id<"runs"> = await ctx.db.insert("runs", {
-      conversationId,
-      messageId,
-      campaignId,
-      input: trimmed,
-      inputType,
-      intent,
-      trigger,
-      status: "running",
-      startedAt: now,
-      deadlineAt: now + FANIN_DEADLINE_MS,
-      replay: replay ?? false,
-      skipVideo,
+  handler: async (ctx, args): Promise<Id<"runs">> => {
+    return await spawnRun(ctx, {
+      intent: args.intent as Capability,
+      input: args.input,
+      inputType: args.inputType,
+      conversationId: args.conversationId,
+      messageId: args.messageId,
+      campaignId: args.campaignId,
+      trigger: args.trigger,
+      replay: args.replay,
+      skipVideo: args.skipVideo,
+      sourceUrl: args.sourceUrl,
+      groundedOnAdId: args.groundedOnAdId,
     });
+  },
+});
 
-    // One queued board row per BOARD agent in this capability's plan. Silent
-    // agents (router, enrich, reply) run but get no tile.
-    const boardAgents = boardAgentsForIntent(intent as Capability);
-    for (const agent of boardAgents) {
-      await ctx.db.insert("agentStatus", {
-        runId,
-        agent,
-        status: "queued",
-      });
-    }
+/**
+ * The ad gallery's "Generate similar" action: take a scanned `ads` row and spawn
+ * a fresh CREATE run grounded on it, reusing the source run's conversation so the
+ * new board renders in the same chat. adsmith reads `groundedOnAdId` to mirror
+ * the winning angle. Returns the new runId so the UI can focus it.
+ */
+export const generateSimilar = mutation({
+  args: { adId: v.id("ads") },
+  handler: async (ctx, { adId }): Promise<Id<"runs">> => {
+    const ad = await ctx.db.get(adId);
+    if (!ad) throw new Error("generateSimilar: ad not found");
+    const sourceRun = await ctx.db.get(ad.runId);
 
-    // Link the spawning chat message so the canvas can render this run's board.
-    if (messageId) {
-      await ctx.db.patch(messageId, { runId, intent });
-    }
-
-    // Hand off to the orchestrator. It owns agentStatus + the fan-in deadline.
-    await ctx.scheduler.runAfter(0, internal.run.orchestrate, { runId });
-
-    return runId;
+    return await spawnRun(ctx, {
+      intent: "content",
+      input: ad.advertiser,
+      inputType: "competitor",
+      conversationId: sourceRun?.conversationId,
+      trigger: "manual",
+      groundedOnAdId: adId,
+    });
   },
 });
 

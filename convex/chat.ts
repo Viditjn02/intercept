@@ -144,6 +144,14 @@ function extractDomain(input: string): string | null {
   return null;
 }
 
+/** Pull the first full URL (with path) out of arbitrary text, if present. The
+ *  replicate flow drops a post/ad link; adsmith scrapes this exact URL. */
+function extractUrl(input: string): string | null {
+  const match = input.match(/https?:\/\/[^\s)]+/i);
+  if (match) return match[0].replace(/[.,)]+$/, "");
+  return null;
+}
+
 /** Best-effort subject: the model's, else a domain from the text, else the text. */
 function cleanSubject(modelSubject: string | undefined, userText: string): string {
   const s = modelSubject?.trim();
@@ -301,8 +309,9 @@ const CAPABILITY_LABEL: Record<Capability, string> = {
   discovery: "hunting the live buyer threads",
   outbound: "sourcing companies and decision-makers",
   outreach: "sending and scheduling the approved outreach",
-  content: "generating the video ad and landing page",
-  competitor: "pulling the competitor's winning ads",
+  content: "generating a similar ad — image, copy, and variations",
+  competitor: "scanning the competitor's live ads and scoring them",
+  replicate: "replicating that ad and improving it",
   social: "scanning trends and spinning up viral posts",
   onboarding: "designing an in-app onboarding flow",
 };
@@ -408,6 +417,13 @@ export const generate = internalAction({
       const ackFallback = defaultAck(decision);
       const ack = await streamInline(ackPrompt(decision), flush, ackFallback);
 
+      // REPLICATE: thread the dropped post/ad URL through to adsmith so it can
+      // scrape the source creative and produce an improved replica.
+      const sourceUrl =
+        decision.intent === "replicate"
+          ? extractUrl(userText) ?? extractUrl(decision.subject ?? "") ?? undefined
+          : undefined;
+
       try {
         runId = await ctx.runMutation(api.runs.createRun, {
           intent: decision.intent,
@@ -416,6 +432,7 @@ export const generate = internalAction({
           conversationId,
           messageId: assistantMessageId,
           trigger: "chat",
+          sourceUrl,
         });
         finalText = `${ack}\n\n_The swarm is live on the canvas → watch it work._`;
       } catch {

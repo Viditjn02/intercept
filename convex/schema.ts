@@ -14,8 +14,8 @@ import { v } from "convex/values";
 //   • ORCHESTRATE runs · agentStatus · events          (the live swarm board)
 //   • DISCOVERY   communities · threads · drafts · brief (the moat — Exa/HN/Reddit)
 //   • OUTBOUND    campaigns · prospects · emails        (OrangeSlice + Fiber + AgentMail)
-//   • CONTENT     creatives · designs                   (Veo/fal video + landing)
-//   • COMPETITOR  ads                                   (Meta Ad Library)
+//   • CONTENT     creatives · adCreatives               (video + generated ads)
+//   • COMPETITOR  ads · adScanCache                      (token-free ad scan)
 //
 // CONVEX RULES (deploy-safety, do NOT violate):
 //   - This module is NOT "use node" (schema never is).
@@ -66,8 +66,9 @@ const intentValidator = v.union(
   v.literal("discovery"), // community/thread intent radar (the moat)
   v.literal("outbound"), // find companies + decision-makers + draft emails
   v.literal("outreach"), // act: send / follow-up approved drafts
-  v.literal("content"), // video ad + landing page + ad copy
-  v.literal("competitor"), // Meta Ad Library winning-ad intel
+  v.literal("content"), // AD FACTORY (create): similar ad — image + copy + variations + video
+  v.literal("competitor"), // AD INTELLIGENCE (scan): multi-platform ad scan + scoring
+  v.literal("replicate"), // drop a post/ad URL → improved replica
   v.literal("social"), // algorithm hacking: trends + viral posts + reel + calendar
   v.literal("onboarding"), // zero-to-one PLG: in-app onboarding flow / product tour
 );
@@ -131,6 +132,10 @@ export default defineSchema({
     routedDomain: v.optional(v.string()), // canonical apex domain to scrape
     replay: v.optional(v.boolean()), // deterministic demo mode (cached fixture)
     skipVideo: v.optional(v.boolean()), // 24/7 ticks skip Veo to save credits
+
+    // AD FACTORY provenance.
+    sourceUrl: v.optional(v.string()), // flow (c): the dropped post/ad URL to replicate
+    groundedOnAdId: v.optional(v.id("ads")), // flow (b): the scanned ad "Generate similar" mirrors
 
     // Roll-up counters for the board summary (best-effort, written by agents).
     sourcedCount: v.optional(v.number()),
@@ -366,15 +371,6 @@ export default defineSchema({
     storageId: v.optional(v.id("_storage")),
   }).index("by_run", ["runId"]),
 
-  designs: defineTable({
-    runId: v.id("runs"),
-    kind: v.string(), // "landing" | "ad_copy"
-    title: v.string(),
-    html: v.optional(v.string()), // generated landing-page markup
-    copy: v.optional(v.string()), // ad copy / headline variants
-    generatedAt: v.number(),
-  }).index("by_run", ["runId"]),
-
   // ==========================================================================
   // COMPETITOR — Meta Ad Library intel: which of a competitor's ads are live and
   // how long they've run (longevity = a proxy for "this creative is working"), so
@@ -383,14 +379,84 @@ export default defineSchema({
   ads: defineTable({
     runId: v.id("runs"),
     advertiser: v.string(),
-    platform: v.string(), // facebook | instagram | audience_network
+    platform: v.string(), // facebook | instagram | audience_network | tiktok
     text: v.string(), // ad copy / primary text
     imageUrl: v.optional(v.string()),
     runningSince: v.optional(v.string()), // ISO date the ad started
     daysRunning: v.optional(v.number()), // longevity = proxy for a winning ad
     status: v.string(), // active | inactive
     url: v.string(), // permalink into the Ad Library
+
+    // --- AD INTELLIGENCE (scan) extensions (all optional → existing rows valid) ---
+    network: v.optional(v.string()), // "meta" | "tiktok"
+    headline: v.optional(v.string()),
+    cta: v.optional(v.string()),
+    mediaType: v.optional(v.string()), // image | video | carousel | unknown
+    thumbnailUrl: v.optional(v.string()),
+    videoUrl: v.optional(v.string()),
+    lastSeen: v.optional(v.string()),
+    engagement: v.optional(
+      v.object({
+        likes: v.optional(v.number()),
+        comments: v.optional(v.number()),
+        shares: v.optional(v.number()),
+      }),
+    ),
+    source: v.optional(v.string()), // which scan lane surfaced it
+    perfScore: v.optional(v.number()), // 0-100 weighted performance score
+    scores: v.optional(
+      v.object({
+        hook: v.number(),
+        clarity: v.number(),
+        cta: v.number(),
+        quality: v.number(),
+        engagement: v.number(),
+      }),
+    ),
+    scalingSignal: v.optional(v.boolean()), // active + ≥21d ⇒ a scaling winner
+    winningAngle: v.optional(v.string()),
+    rank: v.optional(v.number()),
   }).index("by_run", ["runId"]),
+
+  // ==========================================================================
+  // AD FACTORY (create / replicate) — the generated similar/replica ads. adsmith
+  // writes one row per generated ad; the image is gpt-image-1 (b64 → Convex
+  // storage URL), degrading to a copy-only card when image gen is unavailable.
+  // ==========================================================================
+  adCreatives: defineTable({
+    runId: v.id("runs"),
+    kind: v.string(), // "image_ad" | "replica"
+    groundedOnAdId: v.optional(v.id("ads")), // which scanned winner it mirrors
+    sourceUrl: v.optional(v.string()), // flow (c): the dropped post/URL
+    headline: v.string(),
+    primaryText: v.string(),
+    cta: v.string(),
+    variations: v.array(
+      v.object({
+        headline: v.string(),
+        primaryText: v.string(),
+        cta: v.string(),
+        angle: v.string(),
+      }),
+    ),
+    strategy: v.string(), // OpenAI rationale: why this wins
+    imagePrompt: v.string(),
+    imageUrl: v.optional(v.string()),
+    imageStorageId: v.optional(v.id("_storage")),
+    imageStatus: v.string(), // "done" | "degraded" | "failed"
+    degraded: v.boolean(),
+    degradedReason: v.optional(v.string()),
+    model: v.string(),
+    generatedAt: v.number(),
+  }).index("by_run", ["runId"]),
+
+  // The no-token scan path is expensive → cache raw ScannedAd[] for 6h per key.
+  adScanCache: defineTable({
+    key: v.string(), // `${slug(advertiser)}|${country}|${network}`
+    ads: v.array(v.any()), // raw ScannedAd[] (pre-score)
+    fetchedAt: v.number(),
+    source: v.string(),
+  }).index("by_key", ["key"]),
 
   // ==========================================================================
   // TRACK 1 — ALGORITHM HACKING (social / virality engine). The trendscout →

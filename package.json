@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "convex": "convex dev",
+    "video-worker": "node --env-file-if-exists=.env.local scripts/video-worker.mjs",
     "seed": "tsx scripts/seed-demo.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -33,6 +34,7 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "autoprefixer": "^10.4.20",
+    "msedge-tts": "^2.0.6",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",

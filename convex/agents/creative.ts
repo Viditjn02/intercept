@@ -29,6 +29,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { MAX_THREADS } from "../../lib/contract";
 import { generateAd } from "../../lib/veo";
+import { renderVideo } from "../../lib/videoWorker";
 
 const VEO_MODEL = "veo-3.1-fast";
 const AD_ASPECT_RATIO = "9:16"; // vertical — built for the feeds the buyers live in
@@ -133,6 +134,23 @@ export const run = internalAction({
     });
     await logEvent(ctx, runId, "rendered", `Rendering a video ad for ${data.company}…`);
 
+    // FREE MoneyPrinter path FIRST (Pexels stock + Edge-TTS + ffmpeg via the
+    // local worker). $0 — no Veo/fal billing. Unreachable ⇒ fast no-op, falls
+    // through to the Veo render below. Never blocks the run.
+    const free = await tryFreeWorker(ctx, runId, data, prompt);
+    if (free) {
+      await ctx.runMutation(internal.agents.creative.save, {
+        runId,
+        status: "done",
+        prompt,
+        model: free.model,
+        url: free.url,
+        storageId: free.storageId,
+      });
+      await logEvent(ctx, runId, "rendered", `Video ad ready (free ${free.model}).`);
+      return;
+    }
+
     try {
       const result = await generateAd({
         prompt,
@@ -197,6 +215,56 @@ export const run = internalAction({
     }
   },
 });
+
+// ----------------------------------------------------------------------------
+// FREE video worker bridge (MoneyPrinter path). Builds short ad scenes from the
+// brief + buyer language, renders via the local worker, stores the returned MP4
+// into Convex storage. Returns null (never throws) when the worker is down or
+// degrades — the caller then falls back to the Veo render. The free path is $0.
+// ----------------------------------------------------------------------------
+async function tryFreeWorker(
+  ctx: ActionCtx,
+  runId: Id<"runs">,
+  data: AdContext,
+  prompt: string,
+): Promise<{ url?: string; storageId?: Id<"_storage">; model: string } | null> {
+  try {
+    const result = await renderVideo({
+      topic: data.company,
+      script: prompt,
+      scenes: buildAdScenes(data),
+      aspectRatio: AD_ASPECT_RATIO,
+      durationSeconds: AD_DURATION_SECONDS,
+    });
+    if (!result.ok || !result.videoBase64) return null;
+
+    const stored = await ctx.runAction(internal.storage.storeFromBase64, {
+      base64: result.videoBase64,
+      contentType: result.contentType ?? "video/mp4",
+    });
+    return { url: stored.url ?? result.url, storageId: stored.storageId, model: result.model };
+  } catch {
+    return null; // any failure → fall back to Veo
+  }
+}
+
+// Turn the brief + buyers' own language into a few captioned ad scenes (each a
+// narration line + a stock-footage search query) for the free worker.
+function buildAdScenes(data: AdContext): { text: string; query: string }[] {
+  const { company, icp, positioning, threads } = data;
+  const audience = icp.trim() || "teams";
+  const painLine =
+    threads[0]?.title?.trim() || `${audience} waste hours on the same frustrating problem.`;
+  const valueLine =
+    positioning.trim() || `${company} makes it effortless — the modern way to get it done.`;
+
+  return [
+    { text: painLine, query: `${audience} frustrated work` },
+    { text: `There's a better way.`, query: `idea solution technology` },
+    { text: valueLine, query: `${company} product modern office` },
+    { text: `Meet ${company}.`, query: `success team celebration` },
+  ];
+}
 
 // ----------------------------------------------------------------------------
 // Append one line to the live activity feed. Best-effort — a feed write must

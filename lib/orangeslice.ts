@@ -704,3 +704,124 @@ export async function fetchCompanySignals(domain: string): Promise<CompanySignal
     source: "orangeslice",
   };
 }
+
+// ============================================================================
+// AD-SCAN SOURCING WRAPPERS — token-free competitor ad intelligence.
+// ----------------------------------------------------------------------------
+// Thin wrappers over the same Orange Slice gateway (`slicePost`) that the rest
+// of this module uses, exposing the three SDK services the no-token ad scan
+// (lib/adscan.ts) needs. Routing them through `slicePost` keeps the bearer-auth,
+// async polling, and SSRF-guarded transport identical to every other call, and
+// means a missing/placeholder key degrades to a clean empty result instead of
+// throwing. These mirror `services.browser.execute` (→ /execute/kernel),
+// `services.apify.runActor` (→ /execute/apify) and `services.scrape.website`
+// (→ /execute/firecrawl) without importing the Node-only SDK bundle.
+// ============================================================================
+
+/** Result of a single Orange Slice browser-pool run (Playwright `page` in scope). */
+export interface OsBrowserResult {
+  success: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+/**
+ * Run Playwright `code` (with `page` in scope) in the managed Chromium pool —
+ * a residential-IP browser that sidesteps the 403/CAPTCHA wall on the public
+ * Meta Ad Library, so we can read commercial ads with NO Graph API token.
+ * Never throws: no key / timeout / non-2xx ⇒ `{ success:false }`.
+ */
+export async function osBrowserExecute(
+  code: string,
+  opts?: { timeoutSec?: number },
+): Promise<OsBrowserResult> {
+  const data = await slicePost("/execute/kernel", {
+    code,
+    timeout_sec: opts?.timeoutSec ?? 90,
+  });
+  if (!data) return { success: false, error: "no_response" };
+  return {
+    success: data["success"] === true,
+    result: data["result"],
+    error: typeof data["error"] === "string" ? (data["error"] as string) : undefined,
+  };
+}
+
+/** Result of an Orange Slice Apify actor run. */
+export interface OsApifyResult {
+  items: Record<string, unknown>[];
+  usageTotalUsd: number;
+}
+
+/**
+ * Run an Apify actor through the Orange Slice gateway and return its dataset
+ * items. Used as the ad-scan fallback (Meta + TikTok scrapers) when the direct
+ * browser path comes back thin. Never throws: no key / failure ⇒ empty items.
+ */
+export async function osRunApifyActor(
+  actor: string,
+  input: Record<string, unknown>,
+  datasetListParams?: Record<string, unknown>,
+): Promise<OsApifyResult> {
+  const data = await slicePost("/execute/apify", {
+    actor,
+    input,
+    ...(datasetListParams ? { datasetListParams } : {}),
+  });
+  if (!data) return { items: [], usageTotalUsd: 0 };
+  const items = Array.isArray(data["items"])
+    ? (data["items"] as Record<string, unknown>[])
+    : [];
+  const usageTotalUsd =
+    typeof data["usageTotalUsd"] === "number" ? (data["usageTotalUsd"] as number) : 0;
+  return { items, usageTotalUsd };
+}
+
+/** Result of an Orange Slice firecrawl scrape (markdown + links + social URLs). */
+export interface OsScrapeResult {
+  markdown: string;
+  data: Array<{ markdown: string; links: string[] }>;
+  socialUrls?: Record<string, string[]>;
+}
+
+/**
+ * Scrape a single URL via Orange Slice firecrawl — used to resolve the creative
+ * image behind a Meta `ad_snapshot_url` (a 302→login redirect that the browser
+ * pool can render). Never throws: no key / failure ⇒ `null`.
+ */
+export async function osScrapeWebsite(
+  url: string,
+  params?: Record<string, unknown>,
+): Promise<OsScrapeResult | null> {
+  const data = await slicePost("/execute/firecrawl", {
+    url,
+    limit: 1,
+    scrapeOptions: {
+      formats: ["markdown", "links"],
+      onlyMainContent: false,
+      removeBase64Images: true,
+      blockAds: true,
+      timeout: 30_000,
+      ...(params ?? {}),
+    },
+  });
+  if (!data) return null;
+  const markdown = typeof data["markdown"] === "string" ? (data["markdown"] as string) : "";
+  const rows = Array.isArray(data["data"])
+    ? (data["data"] as unknown[]).flatMap((row) => {
+        if (!isRecord(row)) return [];
+        return [
+          {
+            markdown: typeof row["markdown"] === "string" ? (row["markdown"] as string) : "",
+            links: Array.isArray(row["links"])
+              ? (row["links"] as unknown[]).filter((l): l is string => typeof l === "string")
+              : [],
+          },
+        ];
+      })
+    : [];
+  const socialUrls = isRecord(data["socialUrls"])
+    ? (data["socialUrls"] as Record<string, string[]>)
+    : undefined;
+  return { markdown, data: rows, socialUrls };
+}

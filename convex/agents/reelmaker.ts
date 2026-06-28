@@ -25,6 +25,7 @@ import type { ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { generateAd } from "../../lib/veo";
+import { renderVideo } from "../../lib/videoWorker";
 import { buildReelScript } from "../virality/reelScript";
 
 const REEL_KIND = "social_video";
@@ -139,6 +140,26 @@ export const run = internalAction({
     });
     await logEvent(ctx, runId, "rendered", `Rendering a vertical reel for ${data.company}…`);
 
+    // FREE MoneyPrinter path FIRST (Pexels stock + Edge-TTS + ffmpeg via the
+    // local worker). $0 — no Veo/fal billing. If the worker is unreachable it
+    // no-ops fast and we fall through to the Veo chain below.
+    const free = await tryFreeWorker(ctx, runId, {
+      topic: data.topic || `what's trending for ${data.company}`,
+      scenes: [script.hook, ...script.beats, script.cta],
+    });
+    if (free) {
+      await ctx.runMutation(internal.agents.reelmaker.save, {
+        runId,
+        status: "done",
+        prompt: script.prompt,
+        model: free.model,
+        url: free.url,
+        storageId: free.storageId,
+      });
+      await logEvent(ctx, runId, "rendered", `Reel ready (free ${free.model}).`);
+      return;
+    }
+
     try {
       const result = await generateAd({
         prompt: script.prompt,
@@ -194,6 +215,40 @@ export const run = internalAction({
     }
   },
 });
+
+// ----------------------------------------------------------------------------
+// FREE video worker bridge (MoneyPrinter path). Renders via the local worker,
+// stores the returned MP4 bytes into Convex storage, and returns the asset.
+// Returns null (never throws) when the worker is down / degrades — the caller
+// then falls back to the Veo chain. The free path costs $0.
+// ----------------------------------------------------------------------------
+async function tryFreeWorker(
+  ctx: ActionCtx,
+  runId: Id<"runs">,
+  input: { topic: string; scenes: string[] },
+): Promise<{ url?: string; storageId?: Id<"_storage">; model: string } | null> {
+  try {
+    const result = await renderVideo({
+      topic: input.topic,
+      scenes: input.scenes,
+      aspectRatio: REEL_ASPECT,
+      durationSeconds: REEL_DURATION_SECONDS,
+    });
+    if (!result.ok || !result.videoBase64) return null;
+
+    const stored = await ctx.runAction(internal.storage.storeFromBase64, {
+      base64: result.videoBase64,
+      contentType: result.contentType ?? "video/mp4",
+    });
+    return {
+      url: stored.url ?? result.url,
+      storageId: stored.storageId,
+      model: result.model,
+    };
+  } catch {
+    return null; // any failure → fall back to Veo
+  }
+}
 
 // ----------------------------------------------------------------------------
 // Live-feed helper. Best-effort — never blocks the reelmaker lane.

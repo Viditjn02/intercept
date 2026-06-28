@@ -15,8 +15,8 @@ import DiscoveryBoard from "./DiscoveryBoard";
 import ProspectPipeline from "./ProspectPipeline";
 import EmailQueue from "./EmailQueue";
 import EventFeed from "./EventFeed";
-import CompetitorAds from "./CompetitorAds";
-import DesignPanel from "./DesignPanel";
+import AdGallery from "./AdGallery";
+import AdFactoryPanel from "./AdFactoryPanel";
 import CreativePanel from "./CreativePanel";
 import BrainPanel from "./BrainPanel";
 import LiveMetrics from "./LiveMetrics";
@@ -187,14 +187,18 @@ function CanvasForRun({
             </>
           )}
 
-          {(intent === "competitor" || intent === "analyze") && <CompetitorAds runId={run.runId} />}
+          {(intent === "competitor" || intent === "analyze") && (
+            <AdGallery runId={run.runId} onFocusRun={onFocusRun} />
+          )}
 
           {(intent === "content" || intent === "analyze") && (
             <>
-              <DesignPanel runId={run.runId} />
+              <AdFactoryPanel runId={run.runId} />
               <CreativePanel runId={run.runId} />
             </>
           )}
+
+          {intent === "replicate" && <AdFactoryPanel runId={run.runId} />}
 
           {intent === "social" && <ContentCalendar runId={run.runId} />}
 
