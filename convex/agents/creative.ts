@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — CREATIVE AGENT (Veo video ad)
+// INTERCEPT — CREATIVE AGENT (Veo video ad)
 //
 // Kicked EARLY by the orchestrator so the ~73s Veo render lands before the
 // fan-in deadline. It reads whatever the swarm has produced so far (brief,

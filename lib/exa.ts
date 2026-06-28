@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — EXA CLIENT
+// INTERCEPT — EXA CLIENT
 // THE MOAT depends on this: real, clickable URLs to LIVE conversations where
 // buyers are asking the exact question the company answers. Detective agent
 // (convex/agents/detective.ts) calls searchThreads from a "use node" action.

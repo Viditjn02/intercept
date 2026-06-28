@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — DETECTIVE AGENT  ·  THE MOAT
+// INTERCEPT — DETECTIVE AGENT  ·  THE MOAT
 // ----------------------------------------------------------------------------
 // Finds the LIVE communities where a company's buyers are asking the exact
 // question the company answers, returns each as a REAL, clickable, intent-scored
@@ -383,7 +383,7 @@ async function scoreIntent(
 }
 
 const INTENT_SYSTEM_PROMPT =
-  "You are HOLMES's intent analyst. For each forum thread, judge how close the AUTHOR is " +
+  "You are INTERCEPT's intent analyst. For each forum thread, judge how close the AUTHOR is " +
   "to buying a product like the given company's — based ONLY on the thread title/snippet. " +
   "Score 0-100 and assign exactly one label using this rubric:\n" +
   "- ready_to_buy (80-100): explicitly seeking a recommendation/vendor NOW, asking 'what should I use', " +

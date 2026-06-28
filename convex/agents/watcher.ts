@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — WATCHER AGENT (competitor reel teardown)
+// INTERCEPT — WATCHER AGENT (competitor reel teardown)
 //
 // Optional / "if-ahead" agent. Given a competitor reel (video) URL, it calls
 // lib/gemini.analyzeReel to extract the structured hook / pacing / cta, then

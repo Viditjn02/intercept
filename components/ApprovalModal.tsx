@@ -7,7 +7,7 @@ import type { Doc } from "@/convex/_generated/dataModel";
 
 // ============================================================================
 // ApprovalModal — the human-in-the-loop gate.
-// HOLMES drafts an in-thread reply, but nothing is ever posted without a human
+// INTERCEPT drafts an in-thread reply, but nothing is ever posted without a human
 // pressing Approve. This modal shows the drafted reply in the context of the
 // real thread and calls the drafts mutation.
 //

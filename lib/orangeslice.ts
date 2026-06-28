@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — ORANGE SLICE ENRICHMENT CLIENT
+// INTERCEPT — ORANGE SLICE ENRICHMENT CLIENT
 //
 // HONEST SCOPE NOTE: Orange Slice is FIRMOGRAPHIC ENRICHMENT only — it tells us
 // who the company is (industry, size, description) so the Enrich agent can shape
@@ -59,7 +59,7 @@ async function enrichViaHtml(domain: string): Promise<Firmographics> {
     // SSRF guard: `domain` is user-supplied. safeFetch rejects private/loopback/
     // metadata hosts and re-validates redirects before reading any bytes.
     const resp = await safeFetch(url, {
-      headers: { "user-agent": "HolmesBot/1.0 (+enrichment)" },
+      headers: { "user-agent": "InterceptBot/1.0 (+enrichment)" },
     });
     if (resp.ok) {
       html = await resp.text();

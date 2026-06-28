@@ -4,7 +4,7 @@ import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
 // ============================================================================
-// HOLMES — the GTM brief (icp + positioning). Written by the enrich agent and
+// INTERCEPT — the GTM brief (icp + positioning). Written by the enrich agent and
 // repaired by the orchestrator's fan-in so the board always has a brief to
 // render, even if enrich was slow or failed.
 // ============================================================================

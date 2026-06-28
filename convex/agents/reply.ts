@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — REPLY AGENT (the in-thread draft, behind the human-approval gate)
+// INTERCEPT — REPLY AGENT (the in-thread draft, behind the human-approval gate)
 //
 // For each high-intent thread the Detective surfaced, this agent drafts ONE
 // genuinely-helpful, authentic, in-thread reply written in the community's

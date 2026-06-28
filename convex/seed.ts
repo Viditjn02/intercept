@@ -4,7 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { AGENTS, FANIN_DEADLINE_MS } from "../lib/contract";
 
 // ============================================================================
-// HOLMES — DETERMINISTIC REPLAY SEED (harness-owned)
+// INTERCEPT — DETERMINISTIC REPLAY SEED (harness-owned)
 //
 // One atomic public mutation that materializes a full ReplayFixture
 // (see lib/contract.ts) into Convex exactly as a flawless live run would leave

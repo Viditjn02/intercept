@@ -1,4 +1,4 @@
-# HOLMES — Architecture
+# INTERCEPT — Architecture
 
 How an input becomes **a clickable, intent-scored link to a live conversation**, on a realtime board, inside 90 seconds.
 
@@ -145,7 +145,7 @@ The orchestrator enqueues these on the `swarmpool` Workpool and is the sole writ
             └──────────┘
 ```
 
-Nothing leaves HOLMES without a human flipping `awaiting_approval → approved`. The `posted` state is the in-thread reply going out; external outreach (AgentMail/Fiber) is vision/v2.
+Nothing leaves INTERCEPT without a human flipping `awaiting_approval → approved`. The `posted` state is the in-thread reply going out; external outreach (AgentMail/Fiber) is vision/v2.
 
 ---
 

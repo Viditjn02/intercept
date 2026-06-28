@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { AGENTS, FANIN_DEADLINE_MS } from "../lib/contract";
 
 // ============================================================================
-// HOLMES — runs core. Owns the lifecycle of a single GTM run and the
+// INTERCEPT — runs core. Owns the lifecycle of a single GTM run and the
 // agentStatus rows that drive the live swarm board. The orchestrator
 // (convex/run.ts) reacts to this and owns the deadline fan-in.
 // ============================================================================

@@ -5,7 +5,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 
 /**
  * Wraps the app in a single ConvexReactClient bound to NEXT_PUBLIC_CONVEX_URL.
- * The board, brief and every live query in HOLMES read through this provider.
+ * The board, brief and every live query in INTERCEPT read through this provider.
  */
 export default function ConvexClientProvider({
   children,

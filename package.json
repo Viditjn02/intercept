@@ -1,8 +1,8 @@
 {
-  "name": "holmes",
+  "name": "intercept",
   "version": "0.1.0",
   "private": true,
-  "description": "HOLMES — point at a company, a swarm of agents finds the live communities where its buyers are asking the question you answer.",
+  "description": "INTERCEPT — point at a company, a swarm of agents finds the live communities where its buyers are asking the question you answer.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

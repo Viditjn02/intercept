@@ -7,7 +7,7 @@ import { AGENTS } from "../lib/contract";
 import { upsertBrief } from "./brief";
 
 // ============================================================================
-// HOLMES — THE ORCHESTRATOR.
+// INTERCEPT — THE ORCHESTRATOR.
 //
 // Owns the live swarm board (agentStatus) and the hard fan-in deadline. The
 // P1 finding: the brief + board MUST render regardless of slow/failed agents.
@@ -41,7 +41,7 @@ const PHASES: ReadonlyArray<ReadonlyArray<string>> = [
 // reel source today, so this is configured out-of-band. When absent, the
 // orchestrator marks the watcher "skipped" (honest) rather than a no-op "done".
 function competitorReelUrl(): string | undefined {
-  const raw = process.env.HOLMES_COMPETITOR_REEL_URL?.trim();
+  const raw = process.env.INTERCEPT_COMPETITOR_REEL_URL?.trim();
   return raw && raw.length > 0 ? raw : undefined;
 }
 

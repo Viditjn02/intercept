@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — ENRICH AGENT
+// INTERCEPT — ENRICH AGENT
 // Turns a raw company target into a crisp GTM brief. It scrapes the company's
 // web presence (via lib/orangeslice.enrichCompany), then asks the LLM to infer
 // the Ideal Customer Profile (ICP) and the company's positioning. The result is

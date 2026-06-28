@@ -2,7 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 
 // ============================================================================
-// HOLMES — HTTP endpoints. Just a liveness probe for now; the swarm runs over
+// INTERCEPT — HTTP endpoints. Just a liveness probe for now; the swarm runs over
 // the Convex client API, not HTTP.
 // ============================================================================
 

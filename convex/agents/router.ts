@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — ROUTER AGENT
+// INTERCEPT — ROUTER AGENT
 // The lightweight front door of the swarm. It reads the raw run input, asks the
 // LLM to classify what kind of input it is (url | name | competitor | community
 // | text), guesses the buyer intent of the run, and extracts the company's

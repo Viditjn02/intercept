@@ -52,7 +52,7 @@ export default function Home() {
         <button
           onClick={reset}
           className="group flex items-center gap-2.5 text-left"
-          aria-label="HOLMES home"
+          aria-label="INTERCEPT home"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-panel">
             <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-accent">
@@ -61,7 +61,7 @@ export default function Home() {
             </svg>
           </span>
           <span className="text-[17px] font-semibold tracking-tight">
-            HOLMES
+            INTERCEPT
           </span>
           <span className="hidden rounded-full border border-line bg-panel px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-white/40 sm:inline">
             live intent radar
@@ -90,7 +90,7 @@ export default function Home() {
               <br className="hidden sm:block" /> where your buyers are already asking.
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-white/50">
-              Point HOLMES at a company. A swarm of agents surfaces the exact
+              Point INTERCEPT at a company. A swarm of agents surfaces the exact
               threads your buyers are posting in right now — each clickable,
               intent-scored, with a reply drafted and waiting for your approval.
             </p>

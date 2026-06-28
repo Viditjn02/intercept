@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — VEO (GOOGLE) VIDEO AD CLIENT
+// INTERCEPT — VEO (GOOGLE) VIDEO AD CLIENT
 // The Creative agent (convex/agents/creative.ts) calls generateAd to render the
 // Veo video ad. Called from a "use node" Convex action.
 //

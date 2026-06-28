@@ -1,4 +1,4 @@
-# HOLMES — Local Setup & Demo Replay
+# INTERCEPT — Local Setup & Demo Replay
 
 Point at a company → a swarm of agents finds the live communities where its
 buyers are asking the exact question the company answers, returns each as a
@@ -6,7 +6,7 @@ clickable, intent-scored thread + a drafted in-thread reply (behind a
 human-approval gate), and generates a Veo video ad — live on a realtime Convex
 board in under 3 minutes.
 
-This document covers running HOLMES locally **and** the deterministic replay
+This document covers running INTERCEPT locally **and** the deterministic replay
 harness that guarantees the on-camera demo cannot flop.
 
 ---

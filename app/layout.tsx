@@ -3,9 +3,9 @@ import "./globals.css";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 
 export const metadata: Metadata = {
-  title: "HOLMES — find the live conversations your buyers are having",
+  title: "INTERCEPT — find the live conversations your buyers are having",
   description:
-    "Point HOLMES at a company. A swarm of agents finds the live communities where its buyers are asking the exact question it answers — each a clickable, intent-scored thread with a drafted reply, in under 3 minutes.",
+    "Point INTERCEPT at a company. A swarm of agents finds the live communities where its buyers are asking the exact question it answers — each a clickable, intent-scored thread with a drafted reply, in under 3 minutes.",
 };
 
 export const viewport: Viewport = {

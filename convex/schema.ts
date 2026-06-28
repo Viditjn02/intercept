@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 // ============================================================================
-// HOLMES — FROZEN SCHEMA CONTRACT
+// INTERCEPT — FROZEN SCHEMA CONTRACT
 // Every package builds against this. Do not change field shapes without telling
 // the integrator (P1). The frontend, the orchestrator, and the agents all read
 // and write these tables. The live swarm board is driven by `agentStatus`; the

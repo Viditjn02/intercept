@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — OPENAI CLIENT
+// INTERCEPT — OPENAI CLIENT
 // Shared LLM helpers used by the swarm agents (router/enrich/reply) from
 // "use node" Convex actions. chatJSON enforces JSON output; chatText is freeform.
 // ============================================================================

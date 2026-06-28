@@ -1,4 +1,4 @@
-# HOLMES
+# INTERCEPT
 
 **Point at a company. Get the live conversations where its buyers are asking the exact question it answers — each as a clickable, intent-scored thread with a drafted, human-approved reply — plus a generated video ad. Live on a realtime board, in under 3 minutes.**
 
@@ -12,11 +12,11 @@
 
 ---
 
-## What HOLMES is
+## What INTERCEPT is
 
 Most "GTM intelligence" tools hand you a **score**, a **list of contacts**, or a **lookalike audience**. None of those are clickable. None of them point at a human who is, right now, asking the exact question your product answers.
 
-HOLMES does. You give it a company (a URL, a name, a competitor, a community, or a blob of text). A swarm of agents:
+INTERCEPT does. You give it a company (a URL, a name, a competitor, a community, or a blob of text). A swarm of agents:
 
 1. **Figures out who the buyer is** — the ICP and the company's positioning.
 2. **Finds the live communities** where that buyer hangs out (Reddit, Hacker News, forums).
@@ -34,7 +34,7 @@ All of it streams onto a **realtime Convex board** as each agent reports in. The
 
 Not a score. Not a contact. Not a "lookalike audience." A **URL you can tap right now** that lands you on a real person, in a real community, asking the question your product answers — ranked by how close they are to buying — with a reply already drafted for you to approve.
 
-That is the thing competitors can't trivially copy, because it requires (a) real-time community search, (b) per-thread intent scoring, and (c) a drafted, context-aware reply — fused into one tappable object. Everything else in HOLMES exists to produce and defend that object.
+That is the thing competitors can't trivially copy, because it requires (a) real-time community search, (b) per-thread intent scoring, and (c) a drafted, context-aware reply — fused into one tappable object. Everything else in INTERCEPT exists to produce and defend that object.
 
 ---
 
@@ -85,7 +85,7 @@ The full shape lives in `convex/schema.ts` and `lib/contract.ts` — **the froze
 
 ## Sponsor mapping
 
-| Sponsor | Where it shows up in HOLMES |
+| Sponsor | Where it shows up in INTERCEPT |
 |------------------|----------------------------------------------------------------------------------------|
 | **Convex** | The whole realtime backbone: DB, the live swarm board, the Workpool fan-out, the reactive frontend. |
 | **Exa** | **The moat.** Real, clickable, intent-scorable community threads — the on-camera thread source. |
@@ -155,7 +155,7 @@ npm run dev
 
 ## The deterministic demo (replay mode)
 
-Live multi-agent runs over external APIs are gloriously unpredictable — exactly what you don't want on camera. HOLMES ships a **deterministic replay path** so the on-stage run is instant and cannot flop.
+Live multi-agent runs over external APIs are gloriously unpredictable — exactly what you don't want on camera. INTERCEPT ships a **deterministic replay path** so the on-stage run is instant and cannot flop.
 
 - A run created with `replay: true` is hydrated from a cached fixture instead of hitting external APIs.
 - Fixtures live in `fixtures/<slug>.json` and conform to `ReplayFixture` in `lib/contract.ts` (`input`, `enrich`, `communities`, `threads`, `drafts`, `creativeUrl` — a pre-rendered Veo clip).
@@ -177,7 +177,7 @@ We'd rather be precise than oversell. The things to know:
 
 - **Veo needs paid billing.** Veo 3.1 Fast (video) requires a Google account with **billing enabled** on the `GOOGLE_API_KEY`. Without it, the `creative` agent will fail gracefully (the run still completes), and the demo uses the **pre-rendered clip** baked into the replay fixture (`creativeUrl`).
 - **Orange Slice is enrichment, not the thread source.** Orange Slice sharpens the **ICP/positioning** in the `enrich` step. It is **not** where the on-camera clickable threads come from — **those come from Exa.** Don't conflate the two; the moat is Exa.
-- **Outreach is the in-thread reply, and it's human-approved.** HOLMES does **not** auto-post. It *drafts* a reply for high-intent threads; the draft sits in `awaiting_approval` and a human must **approve** before anything is sent. AgentMail/Fiber-style external outreach is **vision/v2**, not this build.
+- **Outreach is the in-thread reply, and it's human-approved.** INTERCEPT does **not** auto-post. It *drafts* a reply for high-intent threads; the draft sits in `awaiting_approval` and a human must **approve** before anything is sent. AgentMail/Fiber-style external outreach is **vision/v2**, not this build.
 - **The 90s deadline is real and intentional.** The fan-in renders the brief from whatever finished before `runs.deadlineAt` (`FANIN_DEADLINE_MS = 90_000`). A slow or failed agent becomes `skipped`/`failed` — it never blocks the board. Partial results are a feature, not a bug.
 - **Caps are deliberate.** `MAX_COMMUNITIES = 5`, `MAX_THREADS = 8` — tuned for signal density and a board that reads cleanly on stage, not exhaustiveness.
 
@@ -208,4 +208,4 @@ See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the full data-flow diagram and 
 
 ---
 
-*HOLMES — find the conversation, not the contact.*
+*INTERCEPT — find the conversation, not the contact.*

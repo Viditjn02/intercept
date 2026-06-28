@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — GEMINI REEL ANALYSIS CLIENT
+// INTERCEPT — GEMINI REEL ANALYSIS CLIENT
 // Analyzes a reference reel/video to extract creative structure the Creative
 // agent reuses when prompting Veo. Called from a "use node" Convex action.
 // Uses gemini-2.5-flash with JSON response mode.

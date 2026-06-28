@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — SSRF-SAFE FETCH
+// INTERCEPT — SSRF-SAFE FETCH
 // Server-side fetches of USER-SUPPLIED URLs (reel analysis, company homepage
 // scrape) are an SSRF vector: an attacker can point us at cloud metadata
 // (169.254.169.254 / metadata.google.internal), loopback, or private ranges to

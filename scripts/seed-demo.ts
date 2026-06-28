@@ -1,5 +1,5 @@
 /**
- * HOLMES — DETERMINISTIC REPLAY SEEDER
+ * INTERCEPT — DETERMINISTIC REPLAY SEEDER
  * ============================================================================
  * Reads a ReplayFixture JSON (see lib/contract.ts) and writes it into Convex
  * through the public `seed.seedFixture` mutation. The result is a fully
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
 
   const fixture = validateFixture(parsed, fixturePath);
 
-  console.log("HOLMES deterministic replay seeder");
+  console.log("INTERCEPT deterministic replay seeder");
   console.log(`  fixture : ${fixturePath}`);
   console.log(`  company : ${fixture.enrich.company}`);
   console.log(`  convex  : ${convexUrl}`);

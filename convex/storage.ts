@@ -1,7 +1,7 @@
 "use node";
 
 // ============================================================================
-// HOLMES — SSRF-guarded download -> Convex File Storage.
+// INTERCEPT — SSRF-guarded download -> Convex File Storage.
 //
 // Isolated in its own "use node" module BECAUSE lib/safeFetch imports
 // node:dns/promises. convex/agents/creative.ts cannot import safeFetch directly:

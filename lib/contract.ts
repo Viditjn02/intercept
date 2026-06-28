@@ -1,5 +1,5 @@
 // ============================================================================
-// HOLMES — SHARED TYPE CONTRACT (imported by agents, orchestrator, frontend)
+// INTERCEPT — SHARED TYPE CONTRACT (imported by agents, orchestrator, frontend)
 // ============================================================================
 
 export const AGENTS = ["router", "enrich", "detective", "creative", "watcher"] as const;

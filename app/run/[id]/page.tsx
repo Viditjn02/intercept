@@ -7,7 +7,7 @@ import SwarmBoard from "@/components/SwarmBoard";
 import Brief from "@/components/Brief";
 
 // ============================================================================
-// HOLMES — RUN-BY-ID VIEW
+// INTERCEPT — RUN-BY-ID VIEW
 // Renders a single run's live swarm board + brief from the URL. This is the
 // render path for the deterministic replay: scripts/seed-demo.ts returns a
 // runId, and `/run/<id>` opens it on stage (no live API calls — it cannot flop).
@@ -24,7 +24,7 @@ export default function RunPage() {
         <Link
           href="/"
           className="group flex items-center gap-2.5 text-left"
-          aria-label="HOLMES home"
+          aria-label="INTERCEPT home"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-panel">
             <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-accent">
@@ -32,7 +32,7 @@ export default function RunPage() {
               <path d="m20 20-4.6-4.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
           </span>
-          <span className="text-[17px] font-semibold tracking-tight">HOLMES</span>
+          <span className="text-[17px] font-semibold tracking-tight">INTERCEPT</span>
           <span className="hidden rounded-full border border-line bg-panel px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-white/40 sm:inline">
             live intent radar
           </span>

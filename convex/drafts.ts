@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 // ============================================================================
-// HOLMES — DRAFTS (the human-approval gate)
+// INTERCEPT — DRAFTS (the human-approval gate)
 //
 // Drafts are created by the reply agent as "awaiting_approval". Nothing is ever
 // auto-posted: a person reviews each draft in components/ApprovalModal.tsx and
