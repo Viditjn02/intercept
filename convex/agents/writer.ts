@@ -77,6 +77,14 @@ export const run = internalAction({
       }),
     );
 
+    // TRACK 2 · pre-send digital twin. Additive + graceful: the twin simulates
+    // each fresh draft (reply-likelihood, objections, score) for PitchLab. It
+    // never throws and degrades to a heuristic with no OPENAI_API_KEY, so it can
+    // never block the swarm or the fan-in.
+    if (drafted > 0) {
+      await ctx.scheduler.runAfter(0, internal.agents.twin.run, { runId });
+    }
+
     return { drafted };
   },
 });

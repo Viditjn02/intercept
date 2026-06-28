@@ -68,6 +68,8 @@ const intentValidator = v.union(
   v.literal("outreach"), // act: send / follow-up approved drafts
   v.literal("content"), // video ad + landing page + ad copy
   v.literal("competitor"), // Meta Ad Library winning-ad intel
+  v.literal("social"), // algorithm hacking: trends + viral posts + reel + calendar
+  v.literal("onboarding"), // zero-to-one PLG: in-app onboarding flow / product tour
 );
 
 export default defineSchema({
@@ -388,5 +390,97 @@ export default defineSchema({
     daysRunning: v.optional(v.number()), // longevity = proxy for a winning ad
     status: v.string(), // active | inactive
     url: v.string(), // permalink into the Ad Library
+  }).index("by_run", ["runId"]),
+
+  // ==========================================================================
+  // TRACK 1 — ALGORITHM HACKING (social / virality engine). The trendscout →
+  // composer → reelmaker → calendar lane. The reel REUSES `creatives` with
+  // kind "social_video" (kind is a free string) — no table for it here.
+  // ==========================================================================
+
+  // Live trends the trendscout surfaced for the run's market (Exa → HN/Reddit).
+  trends: defineTable({
+    runId: v.id("runs"),
+    topic: v.string(),
+    angle: v.string(),
+    source: v.string(), // "exa" | "hackernews" | "reddit"
+    url: v.optional(v.string()),
+    score: v.number(), // 0-100 momentum
+    why: v.string(),
+    foundAt: v.number(),
+  }).index("by_run", ["runId"]),
+
+  // Multi-variant viral posts the composer drafted, scored by the virality model.
+  posts: defineTable({
+    runId: v.id("runs"),
+    platform: v.string(), // "linkedin" | "x" | "tiktok" | "instagram"
+    variant: v.number(),
+    hook: v.string(),
+    body: v.string(),
+    hashtags: v.array(v.string()),
+    angle: v.string(),
+    trendRef: v.optional(v.string()),
+    viralityScore: v.number(), // 0-100
+    viralityBreakdown: v.object({
+      hook: v.number(),
+      emotion: v.number(),
+      clarity: v.number(),
+      timeliness: v.number(),
+      cta: v.number(),
+    }),
+    createdAt: v.number(),
+  }).index("by_run", ["runId"]),
+
+  // The content calendar the scheduler laid the posts out across.
+  contentCalendar: defineTable({
+    runId: v.id("runs"),
+    dayOffset: v.number(),
+    platform: v.string(),
+    postId: v.optional(v.id("posts")),
+    title: v.string(),
+    scheduledLabel: v.string(),
+    status: v.string(), // "planned"
+  }).index("by_run", ["runId"]),
+
+  // ==========================================================================
+  // TRACK 2 — SALES CYBORGS depth (prospect digital twin). The twin simulates a
+  // buyer reading a drafted email and scores it before send.
+  // ==========================================================================
+  simulations: defineTable({
+    runId: v.id("runs"),
+    emailId: v.id("emails"),
+    prospectId: v.id("prospects"),
+    replyLikelihood: v.number(), // 0-100
+    sentiment: v.string(), // "positive" | "neutral" | "negative"
+    predictedReply: v.string(),
+    objections: v.array(v.string()),
+    suggestions: v.array(v.string()),
+    score: v.number(), // 0-100 overall
+    model: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_run", ["runId"])
+    .index("by_email", ["emailId"]),
+
+  // ==========================================================================
+  // TRACK 3 — ZERO-TO-ONE PLG (onboarding flow generator). The guide produces a
+  // structured tour + a ready-to-paste Shepherd.js / OnboardJS embed snippet.
+  // ==========================================================================
+  onboardingFlows: defineTable({
+    runId: v.id("runs"),
+    productName: v.string(),
+    framework: v.string(), // "shepherd" | "onboardjs"
+    tourSteps: v.array(
+      v.object({
+        order: v.number(),
+        target: v.string(), // CSS selector hint
+        title: v.string(),
+        body: v.string(),
+        placement: v.string(), // "top" | "bottom" | "left" | "right" | "center"
+        cta: v.optional(v.string()),
+      }),
+    ),
+    embedSnippet: v.string(), // paste-ready init code
+    generatedAt: v.number(),
   }).index("by_run", ["runId"]),
 });

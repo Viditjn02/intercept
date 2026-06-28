@@ -20,6 +20,9 @@ import DesignPanel from "./DesignPanel";
 import CreativePanel from "./CreativePanel";
 import BrainPanel from "./BrainPanel";
 import LiveMetrics from "./LiveMetrics";
+import ContentCalendar from "./ContentCalendar";
+import PitchLab from "./PitchLab";
+import OnboardingCanvas from "./OnboardingCanvas";
 import {
   campaignForRunRef,
   getMessagesRef,
@@ -180,6 +183,7 @@ function CanvasForRun({
             <>
               <ProspectPipeline runId={run.runId} />
               <EmailQueue runId={run.runId} />
+              <PitchLab runId={run.runId} />
             </>
           )}
 
@@ -191,6 +195,10 @@ function CanvasForRun({
               <CreativePanel runId={run.runId} />
             </>
           )}
+
+          {intent === "social" && <ContentCalendar runId={run.runId} />}
+
+          {intent === "onboarding" && <OnboardingCanvas runId={run.runId} />}
 
           {/* compounding brain — only renders when it knows something */}
           {company && <BrainPanel company={company} />}

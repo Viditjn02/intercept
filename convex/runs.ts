@@ -40,6 +40,8 @@ const intentValidator = v.union(
   v.literal("outreach"),
   v.literal("content"),
   v.literal("competitor"),
+  v.literal("social"),
+  v.literal("onboarding"),
 );
 
 const triggerValidator = v.union(

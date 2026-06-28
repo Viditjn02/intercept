@@ -10,7 +10,10 @@
 //   2. PEOPLE    — OrangeSlice/Apollo `findPeople(domain, personas)` for real
 //                  decision-makers at each account (emails locked here).
 //   3. EMAIL     — Fiber `findContact` for a VERIFIED work email (emailVerified
-//                  is true ONLY when Fiber confirmed it).
+//                  is true ONLY when Fiber confirmed it). FALLBACK: when Fiber
+//                  has no match, the OSS guesser (enrich/emailGuess, email-sleuth
+//                  port) yields a clearly-UNVERIFIED best-effort address so
+//                  outbound still has a target — emailVerified stays UNSET.
 //   4. SIGNAL    — lib/signals `findSignal` attaches one warm buying trigger.
 //
 // Each prospect is enriched then inserted at "enriched" (the qualifier scores it
@@ -34,6 +37,7 @@ import {
 } from "../../lib/orangeslice";
 import { findContact, hasFiberKey } from "../../lib/fiber";
 import { findSignal } from "../../lib/signals";
+import { guessEmailWithMx } from "../enrich/emailGuess";
 
 const DEFAULT_PERSONAS = [
   "Head of Growth",
@@ -80,11 +84,32 @@ export const run = internalAction({
           findSignal(p).catch(() => undefined),
         ]);
 
-        const email = contact?.verified ? contact.email : undefined;
+        // 3. EMAIL — Fiber (verified) stays PRIMARY. When Fiber has no verified
+        //    match, fall back to the OSS email guesser (email-sleuth port): a
+        //    best-effort, clearly-UNVERIFIED address so outbound still has a
+        //    target. `emailVerified` stays UNSET for a guess — ONLY Fiber sets
+        //    it true. Degrades to no email if name/domain are missing.
+        let email = contact?.verified ? contact.email : undefined;
         const verified = Boolean(contact?.verified && email);
-        const source = verified
+        let source = verified
           ? "fiber"
           : p.source ?? (hasOrangeSliceKey() ? "orangeslice" : "synthesized");
+        let guessConfidence: number | undefined;
+
+        if (!verified) {
+          const guessName = p.name ?? contact?.name;
+          const guessDomain = p.domain;
+          if (guessName && guessDomain) {
+            const guess = await guessEmailWithMx(guessName, guessDomain).catch(
+              () => null,
+            );
+            if (guess && guess.email && guess.confidence > 0) {
+              email = guess.email;
+              source = "guess";
+              guessConfidence = guess.confidence;
+            }
+          }
+        }
 
         const prospectId = await ctx.runMutation(internal.prospects.insert, {
           runId,
@@ -121,6 +146,16 @@ export const run = internalAction({
             agent: "sourcer",
             kind: "verified",
             message: `Fiber verified ${email} for ${p.name ?? p.company}`,
+          });
+        } else if (email && guessConfidence !== undefined) {
+          await ctx.runMutation(internal.events.log, {
+            runId,
+            prospectId,
+            agent: "sourcer",
+            kind: "enriched",
+            message: `Guessed ${email} (unverified · ${Math.round(
+              guessConfidence * 100,
+            )}% · Fiber had no match)`,
           });
         }
         if (signal) {

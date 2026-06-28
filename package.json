@@ -16,13 +16,16 @@
     "@convex-dev/persistent-text-streaming": "^0.3.3",
     "@convex-dev/workpool": "^0.2.10",
     "@google/genai": "^1.9.0",
+    "@onboardjs/core": "^1.0.0-rc.4",
     "convex": "^1.17.0",
     "exa-js": "^1.5.13",
+    "finderx": "^1.1.5",
     "next": "15.1.3",
     "openai": "^4.77.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-resizable-panels": "^2.1.9"
+    "react-resizable-panels": "^2.1.9",
+    "shepherd.js": "^15.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

@@ -303,6 +303,8 @@ const CAPABILITY_LABEL: Record<Capability, string> = {
   outreach: "sending and scheduling the approved outreach",
   content: "generating the video ad and landing page",
   competitor: "pulling the competitor's winning ads",
+  social: "scanning trends and spinning up viral posts",
+  onboarding: "designing an in-app onboarding flow",
 };
 
 function ackPrompt(decision: RouterDecision): { system: string; user: string } {

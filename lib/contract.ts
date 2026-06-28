@@ -27,6 +27,8 @@ export type Intent =
   | "outreach" // act: send / follow up approved drafts
   | "content" // video ad + landing page + ad copy
   | "competitor" // Meta Ad Library winning-ad intel
+  | "social" // algorithm hacking: trend scan + viral posts + reel + calendar
+  | "onboarding" // zero-to-one PLG: generate an in-app onboarding flow/tour
   | "brain" // gbrain recall — answered inline, no run
   | "chat"; // pure conversation — answered inline, no run
 
@@ -37,6 +39,8 @@ export const INTENTS: readonly Intent[] = [
   "outreach",
   "content",
   "competitor",
+  "social",
+  "onboarding",
   "brain",
   "chat",
 ] as const;
@@ -50,6 +54,8 @@ export const CAPABILITIES: readonly Capability[] = [
   "outreach",
   "content",
   "competitor",
+  "social",
+  "onboarding",
 ] as const;
 
 export function spawnsRun(intent: Intent): intent is Capability {
@@ -75,7 +81,16 @@ export type AgentId =
   | "adscout" // Meta Ad Library → competitor winning ads
   | "creative" // Veo / fal-LTX video ad
   | "designer" // landing page + ad copy
-  | "watcher"; // competitor reel teardown (when a reel is configured)
+  | "watcher" // competitor reel teardown (when a reel is configured)
+  // --- Track 1: ALGORITHM HACKING (social / virality engine) ---
+  | "trendscout" // live trend + topic scan (Exa → HN/Reddit fallback)
+  | "composer" // multi-variant viral posts, scored by the virality model
+  | "reelmaker" // short vertical video (fal/LTX), MoneyPrinter-style script
+  | "calendar" // content calendar scheduling the generated posts
+  // --- Track 2: SALES CYBORGS depth (prospect digital twin) ---
+  | "twin" // simulates + scores each drafted email before send
+  // --- Track 3: ZERO-TO-ONE PLG (onboarding flow generator) ---
+  | "guide"; // generates an in-app onboarding flow / product tour
 
 export interface AgentSpec {
   id: AgentId;
@@ -99,6 +114,15 @@ export const AGENT_REGISTRY: Readonly<Record<AgentId, AgentSpec>> = {
   creative: { id: "creative", label: "Creative", capability: "content", board: true, blurb: "Veo video ad." },
   designer: { id: "designer", label: "Designer", capability: "content", board: true, blurb: "Landing + ad copy." },
   watcher: { id: "watcher", label: "Watcher", capability: "competitor", board: false, blurb: "Competitor reel teardown." },
+  // Track 1 — algorithm hacking (social).
+  trendscout: { id: "trendscout", label: "Trend Scout", capability: "social", board: true, blurb: "Live trend + topic scan." },
+  composer: { id: "composer", label: "Composer", capability: "social", board: true, blurb: "Multi-variant viral posts." },
+  reelmaker: { id: "reelmaker", label: "Reel Maker", capability: "social", board: true, blurb: "Short vertical video (fal)." },
+  calendar: { id: "calendar", label: "Calendar", capability: "social", board: true, blurb: "Content calendar." },
+  // Track 2 — sales cyborgs (digital twin), serves the outbound surface.
+  twin: { id: "twin", label: "Digital Twin", capability: "outbound", board: true, blurb: "Simulates + scores each draft." },
+  // Track 3 — zero-to-one PLG (onboarding).
+  guide: { id: "guide", label: "Onboarding Guide", capability: "onboarding", board: true, blurb: "Generates a product tour." },
 };
 
 // Ordered list of every agent id (iteration / typing). NOT the per-run roster —
@@ -117,6 +141,12 @@ export const AGENTS: readonly AgentId[] = [
   "creative",
   "designer",
   "watcher",
+  "trendscout",
+  "composer",
+  "reelmaker",
+  "calendar",
+  "twin",
+  "guide",
 ] as const;
 export type AgentName = AgentId;
 
@@ -135,13 +165,18 @@ export const CAPABILITY_PLANS: Readonly<Record<Capability, readonly Phase[]>> = 
   // Just the moat.
   discovery: [["router"], ["enrich"], ["detective"], ["reply"]],
   // OrangeSlice + Fiber discovery → qualify → draft emails (gated, not sent).
-  outbound: [["router"], ["enrich"], ["sourcer"], ["qualifier"], ["writer"]],
+  // The digital twin runs LAST: it reads the writer's drafts and scores them.
+  outbound: [["router"], ["enrich"], ["sourcer"], ["qualifier"], ["writer"], ["twin"]],
   // Act on already-approved work: send + follow up. No re-discovery.
   outreach: [["sender"], ["follower"]],
   // Content factory off the brief.
   content: [["router"], ["enrich"], ["creative", "designer"]],
   // Competitor intel only.
   competitor: [["router"], ["enrich"], ["adscout", "watcher"]],
+  // Algorithm hacking: trend scan → compose posts + render a reel (parallel) → calendar.
+  social: [["router"], ["enrich"], ["trendscout"], ["composer", "reelmaker"], ["calendar"]],
+  // Zero-to-one PLG: enrich the product context → generate the onboarding flow.
+  onboarding: [["router"], ["enrich"], ["guide"]],
 };
 
 /** The board-tile agents for a capability (queued rows + board layout). */
@@ -220,6 +255,30 @@ export const ROUTER_INTENTS: readonly RouterIntentSpec[] = [
       "Generate a video ad (Veo / fal-LTX), a landing page, and ad copy from the brief and the buyers' own language.",
     examples: ["make me a video ad", "build a landing page for this", "write ad copy for the campaign", "generate a launch video"],
     keywords: ["video", "make me a", "landing page", "ad copy", "creative", "generate a", "write copy", "launch video"],
+  },
+  {
+    intent: "social",
+    title: "Algorithm hacking (virality)",
+    description:
+      "Scan what's trending for this company's market, spin up multi-variant viral posts scored by a virality model, render a short vertical video, and lay it all out on a content calendar.",
+    examples: [
+      "make this go viral",
+      "spin up posts + a reel for resend.com",
+      "what's trending for AI email",
+    ],
+    keywords: ["viral", "trend", "trending", "posts", "reel", "tiktok", "linkedin post", "content calendar", "go viral", "short video"],
+  },
+  {
+    intent: "onboarding",
+    title: "Zero-to-one (PLG onboarding)",
+    description:
+      "Generate an in-app onboarding flow / product tour for the user's product, grounded in its value prop, with a live preview and a copy-paste embed snippet.",
+    examples: [
+      "build an onboarding flow for my app",
+      "make a product tour for resend.com",
+      "design a first-run experience",
+    ],
+    keywords: ["onboarding", "product tour", "walkthrough", "first run", "activation", "plg", "shepherd", "tooltip tour", "getting started"],
   },
   {
     intent: "brain",
@@ -376,6 +435,83 @@ export interface DraftedEmail {
   signalRef?: string;
 }
 
+// ----------------------------------------------------------------------------
+// TRACK 1 — ALGORITHM HACKING (social / virality). In-memory hand-offs between
+// trendscout → composer → reelmaker → calendar. Each agent persists its own rows
+// (trends / posts / contentCalendar / creatives); these are the typed contracts.
+// ----------------------------------------------------------------------------
+
+// A single trend the trendscout surfaced for the run's market.
+export interface TrendHit {
+  topic: string;
+  angle: string;
+  source: string; // "exa" | "hackernews" | "reddit"
+  url?: string;
+  score: number; // 0-100 momentum
+  why: string;
+}
+
+// The virality model's per-post breakdown (sub-scores feed the overall score).
+export interface ViralityScore {
+  score: number; // 0-100 overall
+  breakdown: {
+    hook: number;
+    emotion: number;
+    clarity: number;
+    timeliness: number;
+    cta: number;
+  };
+}
+
+// One composed post variant for a given platform, scored by the virality model.
+export interface PostVariant {
+  platform: string; // "linkedin" | "x" | "tiktok" | "instagram"
+  variant: number;
+  hook: string;
+  body: string;
+  hashtags: string[];
+  angle: string;
+  trendRef?: string;
+  virality: ViralityScore;
+}
+
+// One slot in the generated content calendar.
+export interface CalendarSlot {
+  dayOffset: number;
+  platform: string;
+  title: string;
+  scheduledLabel: string;
+  status: string; // "planned"
+}
+
+// ----------------------------------------------------------------------------
+// TRACK 2 — SALES CYBORGS (prospect digital twin). The twin simulates a buyer
+// reading a drafted email and scores it before send. Shared so the writer can
+// call the same simulator (flag-guarded) to ship the best variant.
+// ----------------------------------------------------------------------------
+export interface TwinSimulation {
+  replyLikelihood: number; // 0-100
+  sentiment: string; // "positive" | "neutral" | "negative"
+  predictedReply: string;
+  objections: string[];
+  suggestions: string[];
+  score: number; // 0-100 overall
+  model?: string;
+}
+
+// ----------------------------------------------------------------------------
+// TRACK 3 — ZERO-TO-ONE PLG (onboarding). The guide produces a structured tour;
+// lib/onboarding (convex/onboarding) turns it into a paste-ready embed snippet.
+// ----------------------------------------------------------------------------
+export interface OnboardingStep {
+  order: number;
+  target: string; // CSS selector hint
+  title: string;
+  body: string;
+  placement: string; // "top" | "bottom" | "left" | "right" | "center"
+  cta?: string;
+}
+
 // The seller context the swarm runs against (campaign brief).
 export interface CampaignBrief {
   company: string;
@@ -423,3 +559,16 @@ export const MAX_LINKS_PER_EMAIL = 1;
 // 24/7 campaign cron cadence.
 export const DEFAULT_CADENCE_MINUTES = 60;
 export const MIN_CADENCE_MINUTES = 15;
+
+// Track 1 — algorithm hacking (social / virality).
+export const MAX_TREND_QUERIES = 5; // trend queries the trendscout derives from the brief
+export const POST_VARIANTS_PER_PLATFORM = 3; // variants the composer drafts per platform
+export const SOCIAL_PLATFORMS: readonly string[] = ["linkedin", "x", "tiktok", "instagram"] as const;
+export const MAX_CALENDAR_DAYS = 14; // calendar horizon the scheduler spreads posts across
+
+// Track 2 — sales cyborgs (digital twin).
+export const TWIN_REPLY_THRESHOLD = 50; // replyLikelihood >= this -> "likely to reply"
+
+// Track 3 — zero-to-one PLG (onboarding).
+export const ONBOARDING_STEP_MIN = 4; // floor on generated tour steps
+export const ONBOARDING_STEP_MAX = 7; // ceiling on generated tour steps

@@ -154,6 +154,56 @@ const AGENT_META: Record<AgentId, { tagline: string; icon: ReactElement }> = {
       </>,
     ),
   },
+  trendscout: {
+    tagline: "Scanning live trends & topics",
+    icon: icon(<path d="M3 17l5-5 4 4 8-8m0 0h-5m5 0v5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />),
+  },
+  composer: {
+    tagline: "Spinning up multi-variant viral posts",
+    icon: icon(
+      <>
+        <rect x="3.5" y="4.5" width="17" height="15" rx="3" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </>,
+    ),
+  },
+  reelmaker: {
+    tagline: "Rendering a short vertical reel",
+    icon: icon(
+      <>
+        <rect x="6" y="3" width="12" height="18" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="m11 9 4 2.5-4 2.5z" fill="currentColor" />
+      </>,
+    ),
+  },
+  calendar: {
+    tagline: "Laying out the content calendar",
+    icon: icon(
+      <>
+        <rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M3.5 9.5h17M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </>,
+    ),
+  },
+  twin: {
+    tagline: "Simulating the buyer's reply before send",
+    icon: icon(
+      <>
+        <circle cx="8.5" cy="9" r="3" stroke="currentColor" strokeWidth="1.6" />
+        <circle cx="15.5" cy="9" r="3" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M3.5 19a5 5 0 0 1 10 0M10.5 19a5 5 0 0 1 10 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </>,
+    ),
+  },
+  guide: {
+    tagline: "Generating the in-app onboarding tour",
+    icon: icon(
+      <>
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="m9 12 2 2 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </>,
+    ),
+  },
 };
 
 const STATUS_STYLE: Record<
