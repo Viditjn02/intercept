@@ -270,6 +270,7 @@ function CanvasHeader({
         onFocusRun={onFocusRun}
       />
       <div className="flex items-center gap-2">
+        {view === "run" && activeRun && <ShareDossierButton runId={activeRun.runId} />}
         <CmdKHint />
         <div className="inline-flex rounded-pill border border-hairline bg-canvas/70 p-0.5 text-[11px] font-fig-link">
           <LensTab active={view === "run"} onClick={() => onView("run")}>
@@ -281,6 +282,52 @@ function CanvasHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// ShareDossierButton — copies the public, read-only Intelligence Dossier link
+// (`${origin}/dossier/${runId}`) for the focused run to the clipboard, with a
+// tiny "copied" confirmation. Glass-2 chrome; only shown when a run is focused.
+// ----------------------------------------------------------------------------
+function ShareDossierButton({ runId }: { runId: Id<"runs"> }) {
+  const [copied, setCopied] = useState(false);
+
+  const onShare = () => {
+    try {
+      const url = `${window.location.origin}/dossier/${runId}`;
+      navigator.clipboard?.writeText(url).then(
+        () => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1800);
+        },
+        () => {},
+      );
+    } catch {
+      /* clipboard unavailable — never break the header */
+    }
+  };
+
+  return (
+    <button
+      onClick={onShare}
+      title="Copy a shareable, read-only Intelligence Dossier link for this run"
+      className="glass-2 inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1.5 text-[11px] font-fig-link text-ink transition-transform hover:scale-[1.03]"
+    >
+      {copied ? (
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-success" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-ink/70" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+        </svg>
+      )}
+      <span className="hidden sm:inline">{copied ? "Copied" : "Share dossier"}</span>
+    </button>
   );
 }
 
