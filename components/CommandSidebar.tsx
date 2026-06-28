@@ -369,6 +369,28 @@ export default function CommandSidebar({
           icon={<RadarIcon className="h-4 w-4" />}
           onClick={onOpenRadar}
         />
+        {/* WIN-BACK — opens the global modal (mounted once in app/page.tsx). It
+            self-resolves the target from the persisted settings when the detail
+            URL is empty, so NO prop threading is needed here. Guarded dispatch. */}
+        <NavRow
+          label="Win-Back"
+          sublabel="Revive dead deals"
+          active={false}
+          accent="bg-block-coral"
+          icon={<WinBackIcon className="h-4 w-4" />}
+          onClick={() => {
+            if (typeof window === "undefined") return;
+            try {
+              window.dispatchEvent(
+                new CustomEvent("intercept:open-winback", {
+                  detail: { targetUrl: "" },
+                }),
+              );
+            } catch {
+              /* never break the nav on a dispatch failure */
+            }
+          }}
+        />
       </nav>
 
       {/* RECENT conversations */}
@@ -728,6 +750,14 @@ function RadarIcon({ className }: { className?: string }) {
       <path d="M12 4a8 8 0 1 0 8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       <path d="M12 8a4 4 0 1 0 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+    </svg>
+  );
+}
+function WinBackIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M20 12a8 8 0 1 1-2.3-5.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M20 4v4h-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

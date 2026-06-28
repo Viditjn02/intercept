@@ -59,6 +59,7 @@ import type * as settings from "../settings.js";
 import type * as storage from "../storage.js";
 import type * as virality_reelScript from "../virality/reelScript.js";
 import type * as virality_scoring from "../virality/scoring.js";
+import type * as winback from "../winback.js";
 
 import type {
   ApiFromModules,
@@ -118,6 +119,7 @@ declare const fullApi: ApiFromModules<{
   storage: typeof storage;
   "virality/reelScript": typeof virality_reelScript;
   "virality/scoring": typeof virality_scoring;
+  winback: typeof winback;
 }>;
 
 /**
