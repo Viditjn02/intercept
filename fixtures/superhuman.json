@@ -1,0 +1,98 @@
+{
+  "input": "Superhuman",
+  "enrich": {
+    "company": "Superhuman",
+    "icp": "Founders, executives, and investors who live in their inbox — high-volume professionals drowning in 150-300+ emails a day who treat every saved minute as money and will pay a premium to stop email from eating their focus.",
+    "positioning": "The fastest email experience ever made. Blazing keyboard-driven triage, AI that drafts and summarizes, and a deliberately minimal UI that gets users to inbox zero in a fraction of the time Gmail or Outlook take."
+  },
+  "communities": [
+    {
+      "name": "r/productivity",
+      "platform": "reddit",
+      "url": "https://www.reddit.com/r/productivity/",
+      "why": "2.5M+ members obsessively benchmarking tools and workflows to reclaim time — the single highest concentration of people actively shopping for a faster way to handle email."
+    },
+    {
+      "name": "r/Entrepreneur",
+      "platform": "reddit",
+      "url": "https://www.reddit.com/r/Entrepreneur/",
+      "why": "Founders here openly debate whether premium productivity tools justify their price. They have budget, feel the email pain acutely, and trust peer recommendations over ads."
+    },
+    {
+      "name": "Hacker News",
+      "platform": "hackernews",
+      "url": "https://news.ycombinator.com/",
+      "why": "Technical founders and execs who value speed and keyboard-first UX. 'Ask HN' threads about inbox-zero workflows surface buyers mid-decision, comparing clients on raw performance."
+    }
+  ],
+  "threads": [
+    {
+      "platform": "reddit",
+      "url": "https://www.reddit.com/r/productivity/comments/1ct9x2p/best_email_client_for_someone_drowning_in_200/",
+      "title": "Best email client for someone drowning in 200+ emails a day?",
+      "snippet": "I run a small agency and my inbox is genuinely ruining my days. I'm at 200-250 emails daily and Gmail just feels slow — I spend the first 2 hours of every morning just triaging. What are people actually using to get through email fast? Willing to pay if it actually saves me time.",
+      "intentScore": 88,
+      "intentLabel": "frustrated",
+      "author": "u/agency_grind",
+      "communityName": "r/productivity"
+    },
+    {
+      "platform": "reddit",
+      "url": "https://www.reddit.com/r/Entrepreneur/comments/1d02k7m/is_superhuman_actually_worth_30month_or_is_it_hype/",
+      "title": "Is Superhuman actually worth $30/month or is it just hype?",
+      "snippet": "Keep seeing Superhuman recommended for founders but $30/mo for an email app feels steep. For those who actually pay for it — is it real or is it a status thing? What does it do that Gmail + a few extensions can't? Trying to decide before I commit.",
+      "intentScore": 84,
+      "intentLabel": "comparing",
+      "author": "u/bootstrapped_ben",
+      "communityName": "r/Entrepreneur"
+    },
+    {
+      "platform": "hackernews",
+      "url": "https://news.ycombinator.com/item?id=40218765",
+      "title": "Ask HN: What do you use to get to inbox zero faster?",
+      "snippet": "I'm a solo founder and email has quietly become my biggest time sink — easily 3 hours a day across two accounts. I've tried Gmail keyboard shortcuts but it's not enough. What are HN founders using to actually move fast through email? Looking for something keyboard-driven, not another bloated client.",
+      "intentScore": 79,
+      "intentLabel": "comparing",
+      "author": "tps_founder",
+      "communityName": "Hacker News"
+    },
+    {
+      "platform": "reddit",
+      "url": "https://www.reddit.com/r/productivity/comments/1cw4r8a/gmail_is_destroying_my_focus_want_a_faster/",
+      "title": "Gmail is destroying my focus — want a faster keyboard-driven client",
+      "snippet": "Every time I open Gmail to send one reply I lose 20 minutes to the rabbit hole. The mouse-heavy UI kills my flow. I want something I can drive entirely from the keyboard, archive in one keystroke, and that loads instantly. Does anything like that exist or am I dreaming?",
+      "intentScore": 91,
+      "intentLabel": "frustrated",
+      "author": "u/deepwork_dan",
+      "communityName": "r/productivity"
+    },
+    {
+      "platform": "reddit",
+      "url": "https://www.reddit.com/r/Entrepreneur/comments/1cz1h4e/founder_spending_3_hours_a_day_in_email_ready_to/",
+      "title": "Founder spending 3 hours a day in email — ready to pay to fix this",
+      "snippet": "I've done the math and I'm losing ~15 hours a week to my inbox. That's insane. I don't care about the price anymore, I just want the fastest possible way to process email so I can get back to building. What's the tool serious founders swear by? Ready to buy today.",
+      "intentScore": 94,
+      "intentLabel": "ready_to_buy",
+      "author": "u/scaling_sara",
+      "communityName": "r/Entrepreneur"
+    }
+  ],
+  "drafts": [
+    {
+      "threadUrl": "https://www.reddit.com/r/productivity/comments/1cw4r8a/gmail_is_destroying_my_focus_want_a_faster/",
+      "body": "This was exactly my problem — the mouse-heavy Gmail UI was wrecking my focus too. The thing that fixed it for me was switching to a fully keyboard-driven client. Superhuman is built around this: every action (archive, reply, snooze, search) is a single keystroke, there's a command palette for everything, and it loads instantly so you never get sucked into the rabbit hole. The 'archive and move to next' flow alone cut my triage time in half. It's $30/mo which feels steep until you realize it's giving you back an hour a day. Worth doing the free trial just to feel how fast keyboard-first email actually is.",
+      "confidence": 0.86
+    },
+    {
+      "threadUrl": "https://www.reddit.com/r/Entrepreneur/comments/1d02k7m/is_superhuman_actually_worth_30month_or_is_it_hype/",
+      "body": "Founder here who actually pays for it — it's not a status thing for me, it's pure speed. The honest pitch: it's not doing anything Gmail *can't* do, it's doing all of it 3-4x faster. Everything is keyboard-driven, the AI drafts replies and summarizes long threads, and 'Split Inbox' keeps VIP/founder emails separate from noise automatically. The math is simple: if it saves you 30-45 min a day and your time is worth more than ~$1.50/hour, the $30/mo pays for itself many times over. Do the 30-day trial — you'll know within a week whether the speed is real for your volume.",
+      "confidence": 0.82
+    },
+    {
+      "threadUrl": "https://www.reddit.com/r/Entrepreneur/comments/1cz1h4e/founder_spending_3_hours_a_day_in_email_ready_to/",
+      "body": "15 hours a week is brutal and I was in the exact same spot before I fixed my email setup. Since you said price isn't the blocker: the fastest option for high-volume founders is Superhuman. It's purpose-built for people processing hundreds of emails a day — one-keystroke triage, AI that drafts and summarizes, instant search, and a Split Inbox that surfaces the emails that actually matter. It genuinely got me from ~3 hours/day to under an hour. There's a free trial so you can start today and feel the difference on your real inbox before paying anything.",
+      "confidence": 0.9
+    }
+  ],
+  "creativeUrl": "/demo-ad.mp4"
+}

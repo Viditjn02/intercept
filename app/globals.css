@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   HOLMES — dark, premium base. Theme tokens live in tailwind.config.ts
+   (ink / panel / line / accent / good).
+   ============================================================================ */
+
+:root {
+  color-scheme: dark;
+  --ink: #0a0a0b;
+  --panel: #141417;
+  --line: #26262b;
+  --accent: #ff6a2b;
+  --good: #34d399;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--ink);
+  color: #ededf0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100vh;
+  /* layered radial glows for depth */
+  background:
+    radial-gradient(900px 500px at 15% -10%, rgba(255, 106, 43, 0.10), transparent 60%),
+    radial-gradient(800px 600px at 100% 0%, rgba(52, 211, 153, 0.06), transparent 55%),
+    var(--ink);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(255, 106, 43, 0.3);
+  color: #fff;
+}
+
+/* thin custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2c2c33;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a42;
+}
+
+/* ----------------------------------------------------------------------------
+   Animations
+   ---------------------------------------------------------------------------- */
+
+@keyframes holmes-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes holmes-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 106, 43, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(255, 106, 43, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 106, 43, 0);
+  }
+}
+
+@keyframes holmes-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes holmes-scan {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+
+@keyframes holmes-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes holmes-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-up {
+  animation: holmes-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-pulse-ring {
+  animation: holmes-pulse-ring 1.6s ease-out infinite;
+}
+
+.animate-blink {
+  animation: holmes-blink 1.1s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: holmes-spin 0.9s linear infinite;
+}
+
+/* shimmering scan line used inside a running tile's progress track */
+.scan-track {
+  position: relative;
+  overflow: hidden;
+}
+.scan-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 106, 43, 0.7),
+    transparent
+  );
+  animation: holmes-scan 1.2s ease-in-out infinite;
+}
+
+/* shimmering text for the headline accent */
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    #ededf0 0%,
+    #ffffff 20%,
+    var(--accent) 50%,
+    #ffffff 80%,
+    #ededf0 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: holmes-shimmer 4s linear infinite;
+}
+
+.glass {
+  background: linear-gradient(180deg, rgba(20, 20, 23, 0.9), rgba(15, 15, 18, 0.85));
+  backdrop-filter: blur(12px);
+}
