@@ -332,19 +332,26 @@ function GraphStage({
       ctx.strokeStyle = focused ? rgba(MAGENTA, 0.9) : RING[node.entityType];
       ctx.stroke();
 
-      // labels are intentionally sparse: only the focused/hovered node and the
-      // largest few — so tiny dots stay legible instead of a wall of text.
+      // CLUSTER HEADINGS: every company node anchors a cluster, so it keeps a
+      // persistent BOLD heading at rest — you can always read what each cluster
+      // is about. Other nodes stay sparse (focused/hovered/largest-few only) so
+      // the constellation never becomes a wall of text.
+      const isAnchor = node.entityType === "company";
       const labelled =
         focused ||
+        isAnchor ||
         node.id === hoveredRef.current ||
         topRef.current.has(node.id);
       if (labelled) {
-        const fontSize = Math.min(9, 7 / scale + 2.5);
-        ctx.font = `500 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+        const heading = isAnchor || focused;
+        const fontSize = heading
+          ? Math.min(12, 9 / scale + 3)
+          : Math.min(9, 7 / scale + 2.5);
+        ctx.font = `${heading ? 600 : 500} ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillStyle = focused ? MAGENTA : palette.ink;
-        ctx.fillText(truncate(node.title, 18), x, y + r + 2.5 / scale);
+        ctx.fillText(truncate(node.title, heading ? 24 : 18), x, y + r + 2.5 / scale);
       }
     },
     [palette.ink],
