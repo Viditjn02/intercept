@@ -49,6 +49,8 @@ import type * as knowledge from "../knowledge.js";
 import type * as linkScan from "../linkScan.js";
 import type * as onboarding_embed from "../onboarding/embed.js";
 import type * as outreach from "../outreach.js";
+import type * as pickrate from "../pickrate.js";
+import type * as preflight from "../preflight.js";
 import type * as projects from "../projects.js";
 import type * as prospects from "../prospects.js";
 import type * as run from "../run.js";
@@ -60,6 +62,7 @@ import type * as storage from "../storage.js";
 import type * as virality_reelScript from "../virality/reelScript.js";
 import type * as virality_scoring from "../virality/scoring.js";
 import type * as winback from "../winback.js";
+import type * as workflows from "../workflows.js";
 
 import type {
   ApiFromModules,
@@ -109,6 +112,8 @@ declare const fullApi: ApiFromModules<{
   linkScan: typeof linkScan;
   "onboarding/embed": typeof onboarding_embed;
   outreach: typeof outreach;
+  pickrate: typeof pickrate;
+  preflight: typeof preflight;
   projects: typeof projects;
   prospects: typeof prospects;
   run: typeof run;
@@ -120,6 +125,7 @@ declare const fullApi: ApiFromModules<{
   "virality/reelScript": typeof virality_reelScript;
   "virality/scoring": typeof virality_scoring;
   winback: typeof winback;
+  workflows: typeof workflows;
 }>;
 
 /**

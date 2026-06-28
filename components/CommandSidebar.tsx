@@ -391,6 +391,71 @@ export default function CommandSidebar({
             }
           }}
         />
+        {/* ── Radar-borrowed edge features — rebuilt natively from the field.
+            Each opens a global modal (mounted once in app/page.tsx) and
+            self-resolves the target from settings, so no prop threading. ── */}
+        <NavRow
+          label="AI Pick Rate"
+          sublabel="Does AI recommend you"
+          active={false}
+          accent="bg-block-mint"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" />
+              <path d="m8.5 12 2.5 2.5L16 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          }
+          onClick={() => {
+            if (typeof window === "undefined") return;
+            try {
+              window.dispatchEvent(new CustomEvent("intercept:open-pickrate", { detail: { targetUrl: "" } }));
+            } catch {
+              /* never break the nav */
+            }
+          }}
+        />
+        <NavRow
+          label="GTM Workflows"
+          sublabel="Production-ready, monitored"
+          active={false}
+          accent="bg-block-lime"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <circle cx="6" cy="6" r="2.2" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="18" cy="12" r="2.2" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="6" cy="18" r="2.2" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M8 7l8 4M8 17l8-4" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          }
+          onClick={() => {
+            if (typeof window === "undefined") return;
+            try {
+              window.dispatchEvent(new CustomEvent("intercept:open-workflows", { detail: { targetUrl: "" } }));
+            } catch {
+              /* never break the nav */
+            }
+          }}
+        />
+        <NavRow
+          label="Pre-Flight"
+          sublabel="Predict before you send"
+          active={false}
+          accent="bg-block-pink"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+              <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          }
+          onClick={() => {
+            if (typeof window === "undefined") return;
+            try {
+              window.dispatchEvent(new CustomEvent("intercept:open-preflight", { detail: { targetUrl: "" } }));
+            } catch {
+              /* never break the nav */
+            }
+          }}
+        />
       </nav>
 
       {/* RECENT conversations */}
@@ -652,23 +717,25 @@ function SidebarBlip({
           </span>
         )}
       </div>
-      {showStatus && (
-        <span className="caption flex items-center gap-1.5 text-ink">
-          <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, meta.pulse && "animate-blink")} />
-          <span className="truncate">{meta.label}</span>
-        </span>
-      )}
-      {/* The suggestion bubble floats ABSOLUTELY below the card — it overlays the
-          nav rather than growing the card and shifting the whole menu down. */}
-      {speech && (
-        <button
-          type="button"
-          onClick={dismissSpeech}
-          className="absolute left-1/2 top-full z-40 mt-1.5 max-w-[210px] -translate-x-1/2 rounded-xl border border-hairline bg-canvas px-2.5 py-1 text-center text-[11.5px] leading-snug text-ink shadow-lg transition-opacity hover:opacity-80"
-        >
-          {speech}
-        </button>
-      )}
+      {/* Fixed-height message slot — sits exactly where the status used to, INSIDE
+          the card. The bubble renders HERE so it never grows the card (no menu
+          shift) and never spills out below onto the nav. */}
+      <div className="flex h-[48px] w-full items-center justify-center">
+        {speech ? (
+          <button
+            type="button"
+            onClick={dismissSpeech}
+            className="max-h-[48px] max-w-[200px] overflow-hidden rounded-xl border border-hairline bg-canvas px-2.5 py-1 text-center text-[11px] leading-tight text-ink shadow-sm transition-opacity hover:opacity-80"
+          >
+            {speech}
+          </button>
+        ) : showStatus ? (
+          <span className="caption flex items-center gap-1.5 text-ink">
+            <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, meta.pulse && "animate-blink")} />
+            <span className="truncate">{meta.label}</span>
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

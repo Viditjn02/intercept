@@ -16,6 +16,9 @@ import CommandBar from "@/components/CommandBar";
 import EmailDesigner from "@/components/EmailDesigner";
 import ConversationSimulator from "@/components/ConversationSimulator";
 import WinBackPanel from "@/components/WinBackPanel";
+import PickRatePanel from "@/components/PickRatePanel";
+import WorkflowsPanel from "@/components/WorkflowsPanel";
+import PreFlightPanel from "@/components/PreFlightPanel";
 import TargetGate from "@/components/TargetGate";
 import { sendMessageRef } from "@/components/chatApi";
 import { type Capability, type Intent, spawnsRun } from "@/lib/contract";
@@ -339,6 +342,12 @@ export default function Home() {
       {/* Win-Back — a global modal; opens on the sidebar "Win-Back" row
           (intercept:open-winback). Renders nothing until then. */}
       <WinBackPanel />
+
+      {/* Radar-borrowed edge features — global modals; open from the sidebar
+          (intercept:open-pickrate / open-workflows / open-preflight). */}
+      <PickRatePanel />
+      <WorkflowsPanel />
+      <PreFlightPanel />
 
       {/* Target Gate — the PUBLIC-ONLY welcome overlay. Self-gates on
           NEXT_PUBLIC_PUBLIC_MODE === "1" + an unconfigured browser, so on local
