@@ -28,17 +28,19 @@ export function useCapture(): CaptureFn {
 export default function PostHogProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
-  // Pageview on mount + whenever the route path changes.
+  // Pageview on mount + whenever the route path changes. capture() already
+  // swallows its own errors, but we attach a .catch as defense-in-depth so a
+  // fire-and-forget telemetry call can NEVER surface as an unhandled rejection.
   useEffect(() => {
-    void capture("$pageview", {
+    capture("$pageview", {
       path: pathname,
       $current_url:
         typeof window !== "undefined" ? window.location.href : undefined,
-    });
+    }).catch(() => {});
   }, [pathname]);
 
   const fire: CaptureFn = (event, props) => {
-    void capture(event, props);
+    capture(event, props).catch(() => {});
   };
 
   return (

@@ -50,6 +50,53 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* Benign-rejection guard — registered in <head> so it runs BEFORE
+            Next.js attaches its dev error-overlay listener. Convex's local
+            http://127.0.0.1 backend drops in-flight requests every time
+            `convex dev` reloads, and Safari rejects them with
+            "TimeoutError: operation timed out". These transport-level
+            timeouts/aborts are harmless (the client reconnects), but an
+            unhandled rejection pops Next's full-screen dev overlay and blocks
+            the UI. We swallow ONLY network timeout/abort noise — real app
+            errors (TypeError, etc.) still surface. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  function benign(r) {
+                    if (!r) return false;
+                    var n = (r.name ? String(r.name) : "").toLowerCase();
+                    if (n === "timeouterror" || n === "aborterror") return true;
+                    var m = (r.message ? String(r.message) : String(r)).toLowerCase();
+                    return (
+                      m.indexOf("operation timed out") !== -1 ||
+                      m.indexOf("the operation was aborted") !== -1 ||
+                      m.indexOf("timeouterror") !== -1 ||
+                      m.indexOf("aborterror") !== -1 ||
+                      m.indexOf("load failed") !== -1 ||
+                      m.indexOf("failed to fetch") !== -1 ||
+                      m.indexOf("network request failed") !== -1 ||
+                      m.indexOf("networkerror") !== -1
+                    );
+                  }
+                  window.addEventListener("unhandledrejection", function (e) {
+                    if (benign(e && e.reason)) {
+                      e.preventDefault();
+                      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+                    }
+                  }, true);
+                  window.addEventListener("error", function (e) {
+                    if (benign(e && (e.error || e.message))) {
+                      e.preventDefault();
+                      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+                    }
+                  }, true);
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
       </head>
       <body>
         <ThemeProvider>
