@@ -34,7 +34,11 @@ export default defineSchema({
     // enrich scrapes the real homepage instead of "https://<raw input>".
     routedDomain: v.optional(v.string()),
     replay: v.boolean(), // deterministic demo mode (cached fixture)
-  }).index("by_status", ["status"]),
+    monitorId: v.optional(v.id("monitors")), // set when this run came from a 24/7 monitor tick
+    skipVideo: v.optional(v.boolean()), // background ticks skip Veo to save credits
+  })
+    .index("by_status", ["status"])
+    .index("by_monitor", ["monitorId"]),
 
   // Drives the live swarm board. One row per agent per run.
   agentStatus: defineTable({
@@ -134,4 +138,24 @@ export default defineSchema({
     status: v.string(), // active | inactive
     url: v.string(), // permalink into the Ad Library
   }).index("by_run", ["runId"]),
+
+  // A 24/7 watch: a Convex cron re-runs the swarm on a schedule and surfaces only
+  // NEW intent threads since the last tick. Found drafts still land in the human
+  // approval queue — autonomous discovery, human-approved outreach.
+  monitors: defineTable({
+    company: v.string(),
+    input: v.string(),
+    inputType: v.union(
+      v.literal("url"),
+      v.literal("name"),
+      v.literal("competitor"),
+      v.literal("community"),
+      v.literal("text"),
+    ),
+    active: v.boolean(),
+    cadenceMinutes: v.number(), // how often the cron ticks this monitor
+    lastRunAt: v.optional(v.number()),
+    lastRunId: v.optional(v.id("runs")),
+    createdAt: v.number(),
+  }).index("by_active", ["active"]),
 });
