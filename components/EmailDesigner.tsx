@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { designEmail, type BrandInfo } from "@/lib/brew";
+import {
+  designEmail,
+  type BrandInfo,
+  type EmailLayout,
+  type EmailTone,
+} from "@/lib/brew";
 import {
   listEmailTemplatesRef,
   saveEmailTemplateRef,
@@ -14,25 +19,37 @@ import {
 } from "./chatApi";
 
 // ============================================================================
-// EmailDesigner — global email design drawer.
+// EmailDesigner — the global EMAIL STUDIO drawer.
 // ----------------------------------------------------------------------------
 // Mounted ONCE at the app root; it self-opens when the outreach queue dispatches
 //   window.dispatchEvent(new CustomEvent("intercept:open-email-designer", {
-//     detail: { to, subject, body, emailId?, runId?, brand? } }))
+//     detail: { to, subject, body, emailId?, runId?, brand?, drafts? } }))
 //
-// From a draft (to/subject/body) the human can:
-//   • DESIGN a branded HTML email (Brew) — pick/save a reusable TEMPLATE, or
-//   • send a PLAIN cold email (no design).
-// Actions: Save as template · Send designed · Send plain.
+// This is a real DESIGN surface, not a text→preview. The human picks:
+//   • a LAYOUT variant (minimal / branded / announcement),
+//   • a brand ACCENT colour + LOGO URL + company / from-name / website,
+//   • a CTA button (text + url) and a writing TONE,
+// and the live PREVIEW re-renders through Brew (or, on the client where no key is
+// present, the clean default branded template) on every change — so it *feels*
+// like designing: change the accent → the preview updates.
 //
-// Backend: convex/emailDesign.ts (built in parallel) — bound via typed
-// makeFunctionReference in ./chatApi so this compiles standalone before codegen:
-//   emailDesign:listTemplates · saveTemplate · sendDesigned · sendPlain
+// A draft switcher lets the human jump between open drafts or start blank.
 //
-// Graceful by contract: Brew is unconfigured on the client, so the live preview
-// is the clean default template; the real branded render happens server-side in
-// sendDesigned. Every async path is guarded — the modal never throws.
+// Actions (contract preserved): Save as template · Send designed · Send plain.
+// Backend: convex/emailDesign.ts, bound by name via ./chatApi typed refs.
+//
+// Graceful by contract: BREW_API_KEY is server-only, so the client preview is the
+// default template (which still honours accent/logo/CTA/layout) with a small
+// "preview · Brew renders on send" note. Every async path is guarded.
 // ============================================================================
+
+interface DraftOption {
+  emailId?: Id<"emails">;
+  to?: string;
+  subject?: string;
+  body?: string;
+  label?: string;
+}
 
 interface OpenEmailDesignerDetail {
   to?: string;
@@ -41,6 +58,7 @@ interface OpenEmailDesignerDetail {
   emailId?: Id<"emails">;
   runId?: Id<"runs">;
   brand?: BrandInfo;
+  drafts?: DraftOption[];
 }
 
 type Mode = "design" | "plain";
@@ -52,14 +70,60 @@ interface DraftState {
   body: string;
 }
 
+// The full set of brand/design controls that feed Brew + the live preview.
+interface DesignState {
+  layout: EmailLayout;
+  tone: EmailTone;
+  accentHex: string;
+  logoUrl: string;
+  company: string;
+  fromName: string;
+  websiteUrl: string;
+  footerNote: string;
+  ctaLabel: string;
+  ctaUrl: string;
+}
+
 const EMPTY_DRAFT: DraftState = { to: "", subject: "", body: "" };
+
+const DEFAULT_ACCENT = "#c8e6cd"; // Figma block-mint
+
+const DEFAULT_DESIGN: DesignState = {
+  layout: "branded",
+  tone: "friendly",
+  accentHex: DEFAULT_ACCENT,
+  logoUrl: "",
+  company: "",
+  fromName: "",
+  websiteUrl: "",
+  footerNote: "",
+  ctaLabel: "",
+  ctaUrl: "",
+};
+
+const LAYOUTS: { value: EmailLayout; label: string; hint: string }[] = [
+  { value: "minimal", label: "Minimal", hint: "Clean letter" },
+  { value: "branded", label: "Branded", hint: "Accent + logo card" },
+  { value: "announcement", label: "Announce", hint: "Bold header band" },
+];
+
+const TONES: EmailTone[] = ["friendly", "direct", "formal", "playful"];
+
+/** A safe #rrggbb for the native colour input (which rejects anything else). */
+function normalizeHex(hex: string): string {
+  const v = hex.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? v : DEFAULT_ACCENT;
+}
 
 export default function EmailDesigner() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
   const [emailId, setEmailId] = useState<Id<"emails"> | undefined>(undefined);
   const [runId, setRunId] = useState<Id<"runs"> | undefined>(undefined);
-  const [brand, setBrand] = useState<BrandInfo | undefined>(undefined);
+
+  const [drafts, setDrafts] = useState<DraftOption[]>([]);
+  const [activeDraft, setActiveDraft] = useState<string>("blank");
+  const [design, setDesign] = useState<DesignState>(DEFAULT_DESIGN);
 
   const [mode, setMode] = useState<Mode>("design");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -97,7 +161,20 @@ export default function EmailDesigner() {
       });
       setEmailId(detail.emailId);
       setRunId(detail.runId);
-      setBrand(detail.brand);
+      setDrafts(detail.drafts ?? []);
+      setActiveDraft(detail.emailId ? String(detail.emailId) : "blank");
+
+      const b = detail.brand;
+      setDesign({
+        ...DEFAULT_DESIGN,
+        accentHex: (b?.accentHex && b.accentHex.trim()) || DEFAULT_ACCENT,
+        logoUrl: b?.logoUrl ?? "",
+        company: b?.company ?? "",
+        fromName: b?.fromName ?? "",
+        websiteUrl: b?.websiteUrl ?? "",
+        footerNote: b?.footerNote ?? "",
+      });
+
       setMode("design");
       setSelectedTemplateId(null);
       setNote(null);
@@ -131,13 +208,25 @@ export default function EmailDesigner() {
     [templates, selectedTemplateId],
   );
 
+  // The 6-field BrandInfo the save contract + Brew expect, derived from controls.
+  const brandInfo = useMemo<BrandInfo>(
+    () => ({
+      company: design.company.trim() || undefined,
+      logoUrl: design.logoUrl.trim() || undefined,
+      accentHex: design.accentHex.trim() || undefined,
+      fromName: design.fromName.trim() || undefined,
+      websiteUrl: design.websiteUrl.trim() || undefined,
+      footerNote: design.footerNote.trim() || undefined,
+    }),
+    [design],
+  );
+
   // ── Build the live preview (design mode). A selected template shows its saved
   //    HTML instantly; otherwise we ask Brew (which on the client returns the
-  //    clean default branded template). designEmail never throws. ─────────────
+  //    clean default template built from the live controls). Never throws. ─────
   useEffect(() => {
     if (!open || mode !== "design") return;
 
-    // A saved template wins — show its branded HTML immediately.
     if (selectedTemplate?.html) {
       setPreviewHtml(selectedTemplate.html);
       setDegraded(false);
@@ -147,7 +236,15 @@ export default function EmailDesigner() {
 
     let cancelled = false;
     setDesigning(true);
-    designEmail({ subject: draft.subject, body: draft.body, brand })
+    designEmail({
+      subject: draft.subject,
+      body: draft.body,
+      brand: brandInfo,
+      layout: design.layout,
+      tone: design.tone,
+      ctaLabel: design.ctaLabel.trim() || undefined,
+      ctaUrl: design.ctaUrl.trim() || undefined,
+    })
       .then((res) => {
         if (cancelled) return;
         setPreviewHtml(res.html);
@@ -162,12 +259,48 @@ export default function EmailDesigner() {
     return () => {
       cancelled = true;
     };
-  }, [open, mode, draft.subject, draft.body, brand, selectedTemplate]);
+  }, [
+    open,
+    mode,
+    draft.subject,
+    draft.body,
+    brandInfo,
+    design.layout,
+    design.tone,
+    design.ctaLabel,
+    design.ctaUrl,
+    selectedTemplate,
+  ]);
 
   const setField = useCallback(
     (field: keyof DraftState) => (value: string) =>
       setDraft((d) => ({ ...d, [field]: value })),
     [],
+  );
+
+  // Any control edit takes over from a selected template so the live design wins.
+  const updateDesign = useCallback((patch: Partial<DesignState>) => {
+    setDesign((d) => ({ ...d, ...patch }));
+    setSelectedTemplateId(null);
+  }, []);
+
+  const selectDraft = useCallback(
+    (key: string) => {
+      setActiveDraft(key);
+      setNote(null);
+      setSelectedTemplateId(null);
+      if (key === "blank") {
+        setDraft(EMPTY_DRAFT);
+        setEmailId(undefined);
+        return;
+      }
+      const opt = drafts.find((d) => String(d.emailId) === key);
+      if (opt) {
+        setDraft({ to: opt.to ?? "", subject: opt.subject ?? "", body: opt.body ?? "" });
+        setEmailId(opt.emailId);
+      }
+    },
+    [drafts],
   );
 
   const canSend = draft.subject.trim().length > 0 && draft.body.trim().length > 0;
@@ -191,16 +324,14 @@ export default function EmailDesigner() {
         subject: draft.subject.trim() || undefined,
         html: previewHtml,
         body: draft.body.trim() || undefined,
-        brand: brand
-          ? {
-              company: brand.company,
-              logoUrl: brand.logoUrl,
-              accentHex: brand.accentHex,
-              fromName: brand.fromName,
-              websiteUrl: brand.websiteUrl,
-              footerNote: brand.footerNote,
-            }
-          : undefined,
+        brand: {
+          company: brandInfo.company,
+          logoUrl: brandInfo.logoUrl,
+          accentHex: brandInfo.accentHex,
+          fromName: brandInfo.fromName,
+          websiteUrl: brandInfo.websiteUrl,
+          footerNote: brandInfo.footerNote,
+        },
       });
       setSavingTemplate(false);
       setTemplateName("");
@@ -210,7 +341,7 @@ export default function EmailDesigner() {
     } finally {
       setBusy(null);
     }
-  }, [templateName, previewHtml, draft.subject, draft.body, brand, saveTemplate]);
+  }, [templateName, previewHtml, draft.subject, draft.body, brandInfo, saveTemplate]);
 
   const onSendDesigned = useCallback(async () => {
     if (!canSend) {
@@ -277,7 +408,7 @@ export default function EmailDesigner() {
       className="fixed inset-0 z-50 flex justify-end bg-scrim/60"
       role="dialog"
       aria-modal="true"
-      aria-label="Design email"
+      aria-label="Email Studio"
       onClick={close}
     >
       <div
@@ -287,7 +418,9 @@ export default function EmailDesigner() {
         {/* Header */}
         <header className="flex items-start justify-between gap-4 border-b border-hairline px-6 py-4">
           <div className="min-w-0">
-            <p className="caption font-mono uppercase text-ink/50">Email designer · Brew</p>
+            <p className="caption font-mono uppercase tracking-wide text-ink/50">
+              Email Studio · Brew
+            </p>
             <h2 className="mt-1 truncate text-lg font-fig-headline text-ink">
               {draft.subject.trim() || "Untitled email"}
             </h2>
@@ -331,7 +464,7 @@ export default function EmailDesigner() {
           ))}
           {mode === "design" && degraded && (
             <span className="ml-auto caption rounded-full bg-block-cream px-2.5 py-1 text-ink/70">
-              preview template · Brew renders on send
+              preview · Brew renders on send
             </span>
           )}
         </div>
@@ -342,8 +475,25 @@ export default function EmailDesigner() {
           <>
             {/* Body */}
             <div className="flex min-h-0 flex-1">
-              {/* Left — draft fields + templates */}
+              {/* Left — draft fields + design controls + templates */}
               <div className="w-2/5 shrink-0 space-y-4 overflow-y-auto border-r border-hairline px-6 py-5">
+                {drafts.length > 0 && (
+                  <Field label="Draft">
+                    <select
+                      value={activeDraft}
+                      onChange={(e) => selectDraft(e.target.value)}
+                      className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink outline-none transition-colors focus:border-ink/40"
+                    >
+                      <option value="blank">Start blank</option>
+                      {drafts.map((d) => (
+                        <option key={String(d.emailId)} value={String(d.emailId)}>
+                          {d.label || d.subject || "Untitled draft"}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+
                 <Field label="To">
                   <input
                     type="email"
@@ -366,23 +516,27 @@ export default function EmailDesigner() {
                   <textarea
                     value={draft.body}
                     onChange={(e) => setField("body")(e.target.value)}
-                    rows={10}
+                    rows={8}
                     placeholder="Write the cold email…"
                     className="w-full resize-none rounded-md border border-hairline bg-canvas px-3 py-2 text-[13px] leading-relaxed text-ink outline-none transition-colors placeholder:text-ink/35 focus:border-ink/40"
                   />
                 </Field>
 
                 {mode === "design" && (
-                  <div className="space-y-2">
-                    <p className="caption font-mono uppercase text-ink/45">Templates</p>
-                    <TemplatePicker
-                      templates={templates}
-                      selectedId={selectedTemplateId}
-                      onSelect={(id) =>
-                        setSelectedTemplateId((cur) => (cur === id ? null : id))
-                      }
-                    />
-                  </div>
+                  <>
+                    <DesignControls design={design} onChange={updateDesign} />
+
+                    <div className="space-y-2">
+                      <p className="caption font-mono uppercase text-ink/45">Saved templates</p>
+                      <TemplatePicker
+                        templates={templates}
+                        selectedId={selectedTemplateId}
+                        onSelect={(id) =>
+                          setSelectedTemplateId((cur) => (cur === id ? null : id))
+                        }
+                      />
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -390,10 +544,12 @@ export default function EmailDesigner() {
               <div className="flex min-w-0 flex-1 flex-col bg-surface-soft">
                 <div className="flex items-center justify-between border-b border-hairline px-5 py-2.5">
                   <span className="caption font-mono uppercase text-ink/45">
-                    {mode === "design" ? "Preview" : "Plain text"}
+                    {mode === "design" ? "Live preview" : "Plain text"}
                   </span>
-                  {mode === "design" && designing && (
-                    <span className="caption text-ink/40">rendering…</span>
+                  {mode === "design" && (
+                    <span className="caption text-ink/40">
+                      {designing ? "rendering…" : `${design.layout} layout`}
+                    </span>
                   )}
                 </div>
                 <div className="min-h-0 flex-1 overflow-hidden p-4">
@@ -407,7 +563,9 @@ export default function EmailDesigner() {
                       />
                     ) : (
                       <div className="grid h-full place-items-center rounded-md border border-dashed border-hairline bg-canvas text-center text-[13px] text-ink/50">
-                        {designing ? "Designing your email…" : "Add a subject and body to preview the design."}
+                        {designing
+                          ? "Designing your email…"
+                          : "Add a subject and body to preview the design."}
                       </div>
                     )
                   ) : (
@@ -509,6 +667,138 @@ export default function EmailDesigner() {
 }
 
 // ---------------------------------------------------------------------------
+// DesignControls — the brand/design panel that feeds Brew + the live preview.
+// ---------------------------------------------------------------------------
+
+function DesignControls({
+  design,
+  onChange,
+}: {
+  design: DesignState;
+  onChange: (patch: Partial<DesignState>) => void;
+}) {
+  return (
+    <div className="space-y-3.5 rounded-lg border border-hairline bg-surface-soft/60 p-3.5">
+      <p className="caption font-mono uppercase tracking-wide text-ink/55">Design</p>
+
+      {/* Layout variant */}
+      <div>
+        <span className="caption font-mono uppercase text-ink/45">Layout</span>
+        <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+          {LAYOUTS.map((l) => (
+            <button
+              key={l.value}
+              type="button"
+              onClick={() => onChange({ layout: l.value })}
+              title={l.hint}
+              className={cn(
+                "rounded-md border px-2 py-1.5 text-[11.5px] font-fig-link transition-colors",
+                design.layout === l.value
+                  ? "border-ink/40 bg-ink text-on-primary"
+                  : "border-hairline bg-canvas text-ink/80 hover:bg-surface-soft",
+              )}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Accent + tone */}
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <span className="caption font-mono uppercase text-ink/45">Accent</span>
+          <div className="mt-1.5 flex items-center gap-2">
+            <input
+              type="color"
+              value={normalizeHex(design.accentHex)}
+              onChange={(e) => onChange({ accentHex: e.target.value })}
+              aria-label="Accent colour"
+              className="h-8 w-9 shrink-0 cursor-pointer rounded-md border border-hairline bg-canvas p-0.5"
+            />
+            <input
+              type="text"
+              value={design.accentHex}
+              onChange={(e) => onChange({ accentHex: e.target.value })}
+              placeholder="#c8e6cd"
+              className="w-full rounded-md border border-hairline bg-canvas px-2.5 py-1.5 text-[12px] text-ink outline-none transition-colors placeholder:text-ink/35 focus:border-ink/40"
+            />
+          </div>
+        </div>
+        <div className="w-[38%]">
+          <span className="caption font-mono uppercase text-ink/45">Tone</span>
+          <select
+            value={design.tone}
+            onChange={(e) => onChange({ tone: e.target.value as EmailTone })}
+            className="mt-1.5 w-full rounded-md border border-hairline bg-canvas px-2 py-1.5 text-[12px] capitalize text-ink outline-none transition-colors focus:border-ink/40"
+          >
+            {TONES.map((t) => (
+              <option key={t} value={t} className="capitalize">
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <ControlInput
+        label="Logo URL"
+        value={design.logoUrl}
+        onChange={(v) => onChange({ logoUrl: v })}
+        placeholder="https://…/logo.png"
+      />
+
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <ControlInput
+            label="Company"
+            value={design.company}
+            onChange={(v) => onChange({ company: v })}
+            placeholder="Acme"
+          />
+        </div>
+        <div className="flex-1">
+          <ControlInput
+            label="From name"
+            value={design.fromName}
+            onChange={(v) => onChange({ fromName: v })}
+            placeholder="Jordan"
+          />
+        </div>
+      </div>
+
+      <ControlInput
+        label="Website URL"
+        value={design.websiteUrl}
+        onChange={(v) => onChange({ websiteUrl: v })}
+        placeholder="https://acme.com"
+      />
+
+      {/* Call to action */}
+      <div>
+        <span className="caption font-mono uppercase text-ink/45">Call to action</span>
+        <div className="mt-1.5 flex gap-2">
+          <input
+            type="text"
+            value={design.ctaLabel}
+            onChange={(e) => onChange({ ctaLabel: e.target.value })}
+            placeholder="Button text"
+            className="w-2/5 rounded-md border border-hairline bg-canvas px-2.5 py-1.5 text-[12px] text-ink outline-none transition-colors placeholder:text-ink/35 focus:border-ink/40"
+          />
+          <input
+            type="text"
+            value={design.ctaUrl}
+            onChange={(e) => onChange({ ctaUrl: e.target.value })}
+            placeholder="https://…"
+            className="flex-1 rounded-md border border-hairline bg-canvas px-2.5 py-1.5 text-[12px] text-ink outline-none transition-colors placeholder:text-ink/35 focus:border-ink/40"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Small presentational pieces.
 // ---------------------------------------------------------------------------
 
@@ -517,6 +807,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <label className="block">
       <span className="caption font-mono uppercase text-ink/45">{label}</span>
       <div className="mt-1.5">{children}</div>
+    </label>
+  );
+}
+
+function ControlInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="caption font-mono uppercase text-ink/45">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1.5 w-full rounded-md border border-hairline bg-canvas px-2.5 py-1.5 text-[12px] text-ink outline-none transition-colors placeholder:text-ink/35 focus:border-ink/40"
+      />
     </label>
   );
 }

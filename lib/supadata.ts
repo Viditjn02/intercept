@@ -350,6 +350,88 @@ export async function socialMeta(url: string): Promise<SupadataResult<SocialMeta
 }
 
 // ---------------------------------------------------------------------------
+// URL classification + universal transcript (link-drop "break it down" feature).
+// ---------------------------------------------------------------------------
+
+const YT_RE = /(?:youtube\.com|youtu\.be)/i;
+// Video/short-form platforms Supadata's transcript endpoints can read.
+const VIDEO_RE =
+  /(?:youtube\.com|youtu\.be|tiktok\.com|instagram\.com\/(?:reel|reels|p|tv)|vimeo\.com|(?:x\.com|twitter\.com)\/[^/]+\/status)/i;
+
+/** True when the URL looks like a transcribable video (YouTube/TikTok/IG/X/Vimeo). */
+export function isVideoUrl(url: string): boolean {
+  return !!url && VIDEO_RE.test(url);
+}
+
+/**
+ * transcript — universal, budgeted, cached transcript for a dropped video link.
+ * Routes YouTube through the existing youtubeTranscript (its budget/cache/rate-
+ * limit discipline is reused); other platforms hit Supadata's universal
+ * `/transcript` endpoint under the SAME free-tier budget. Never throws — returns
+ * a degraded result on no key / budget / empty / error so callers can fall back.
+ */
+export async function transcript(
+  url: string,
+  opts: { force?: boolean } = {},
+): Promise<SupadataResult<YoutubeTranscript>> {
+  if (!url) return fail<YoutubeTranscript>("bad_input");
+
+  // YouTube → reuse the budgeted/cached/rate-limited path verbatim.
+  if (YT_RE.test(url)) return youtubeTranscript(url, opts);
+
+  const cacheKey = `tx:${url}`;
+  const cached = cacheGet<YoutubeTranscript>(cacheKey, cfg.transcriptTtlMs);
+  if (cached) return cached; // cache hits are FREE — don't spend budget
+
+  if (!supadataEnabled()) return fail<YoutubeTranscript>("no_api_key");
+
+  // Budget gate (shared with youtubeTranscript — top 1-2 videos per process).
+  if (_transcriptsUsed >= cfg.transcriptBudget) {
+    return fail<YoutubeTranscript>("budget_exhausted");
+  }
+
+  // Client-side rate-limit gate.
+  const gap = Date.now() - _lastTranscriptAt;
+  if (!opts.force && _lastTranscriptAt > 0 && gap < cfg.transcriptMinGapMs) {
+    await new Promise((res) => setTimeout(res, cfg.transcriptMinGapMs - gap));
+  }
+
+  _lastTranscriptAt = Date.now();
+  const r = await getJson<any>("/transcript", { url, text: true });
+
+  if (!r.ok) return fail<YoutubeTranscript>(r.reason, r.status);
+  _transcriptsUsed += 1; // only burn budget on a real success
+
+  const j = r.json || {};
+  const text: string =
+    typeof j.content === "string"
+      ? j.content
+      : j.text ?? (Array.isArray(j.content) ? j.content.map((c: any) => c.text).join(" ") : "") ?? "";
+
+  if (!text.trim()) {
+    return { ...fail<YoutubeTranscript>("empty", r.status), degraded: true };
+  }
+
+  const data: YoutubeTranscript = {
+    url,
+    videoId: j.videoId ?? j.video_id ?? undefined,
+    text,
+    lang: j.lang ?? j.language ?? undefined,
+    words: wordCount(text),
+  };
+  const out: SupadataResult<YoutubeTranscript> = {
+    ok: true,
+    degraded: false,
+    reason: "ok",
+    status: r.status,
+    data,
+    source: "supadata",
+  };
+  cacheSet(cacheKey, out);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // small parsers
 // ---------------------------------------------------------------------------
 
@@ -379,6 +461,8 @@ export const supadata = {
   enabled: supadataEnabled,
   webScrape,
   youtubeTranscript,
+  transcript,
+  isVideoUrl,
   socialMeta,
   transcriptBudgetStatus,
 };

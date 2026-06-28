@@ -177,13 +177,15 @@ export default function DashboardHome({
   return (
     <div className="flex h-full w-full overflow-hidden bg-canvas text-ink">
       {/* ── main column: ONE scroll for the COMPACT node grid + the plays
-          (children). Cards are sized to fit — no cramped inner scroll box. ──── */}
-      <div className="col-scroll min-h-0 flex-1 overflow-y-auto px-7 pb-28 pt-6">
-        <header className="mb-4">
+          (children). Cards are sized to fit ABOVE THE FOLD — no one should have
+          to scroll to read the key plays. pb clears the floating CommandBar so
+          nothing ever hides behind it. ─────────────────────────────────────── */}
+      <div className="col-scroll min-h-0 flex-1 overflow-y-auto px-7 pb-32 pt-5">
+        <header className="mb-3">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink/45">
             GTM Command Center
           </p>
-          <h1 className="mt-1 text-[23px] font-fig-headline leading-tight tracking-tight">
+          <h1 className="mt-0.5 text-[21px] font-fig-headline leading-tight tracking-tight">
             Pick a play.
           </h1>
         </header>
@@ -203,12 +205,16 @@ export default function DashboardHome({
 
         {/* the fire-a-play menu shares this scroll, passed in by the dashboard
             surface, so cards + plays read as one page (never a split). */}
-        {children ? <div className="mt-8">{children}</div> : null}
+        {children ? <div className="mt-6">{children}</div> : null}
       </div>
 
-      {/* ── right rail: merged live-activity feed (its own scroll) ───────── */}
-      <aside className="hidden w-[300px] shrink-0 border-l border-hairline bg-surface-soft/40 lg:block">
-        <ActivityFeed runs={runs} />
+      {/* ── right rail: COMPACT live-activity feed. Capped to a short fixed
+          height (upper portion) so it reads as a glance-able ticker, never a
+          long column (founder asked twice to shorten it). ────────────────── */}
+      <aside className="hidden w-[300px] shrink-0 border-l border-hairline bg-surface-soft/40 p-3 lg:block">
+        <div className="flex max-h-[300px] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas shadow-soft">
+          <ActivityFeed runs={runs} />
+        </div>
       </aside>
     </div>
   );
@@ -446,12 +452,12 @@ function ActivityFeed({ runs }: { runs: Doc<"runs">[] | undefined }) {
 
   const rows = useMemo(() => {
     const merged = [...(s0 ?? []), ...(s1 ?? []), ...(s2 ?? []), ...(s3 ?? []), ...(s4 ?? []), ...(s5 ?? [])];
-    return merged.sort((a, b) => b.createdAt - a.createdAt).slice(0, 40);
+    return merged.sort((a, b) => b.createdAt - a.createdAt).slice(0, 24);
   }, [s0, s1, s2, s3, s4, s5]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-hairline px-5 py-3.5">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5">
         <span className="live-dot text-emerald-500" />
         <span className="font-mono text-[10.5px] font-semibold uppercase tracking-wide text-ink/55">
           Live activity
@@ -472,9 +478,9 @@ function ActivityFeed({ runs }: { runs: Doc<"runs">[] | undefined }) {
           Activity from the swarm appears here in real time.
         </p>
       ) : (
-        <ul className="col-scroll flex-1 divide-y divide-hairline/60 overflow-y-auto">
+        <ul className="col-scroll min-h-0 flex-1 divide-y divide-hairline/60 overflow-y-auto">
           {rows.map((e) => (
-            <li key={e._id} className="flex items-center gap-2.5 px-5 py-2 animate-row-in">
+            <li key={e._id} className="flex items-center gap-2.5 px-4 py-1.5 animate-row-in">
               <span
                 className="h-1.5 w-1.5 shrink-0 rounded-full"
                 style={{ background: kindColor(e.kind) }}

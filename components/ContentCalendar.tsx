@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
+import LinkBreakdown from "./LinkBreakdown";
 
 // ============================================================================
 // ContentCalendar — TRACK 1 (algorithm hacking / virality) canvas panel.
@@ -85,6 +86,14 @@ export default function ContentCalendar({ runId }: ContentCalendarProps) {
           )}
         </div>
       )}
+
+      {/* Subtle: break down a reference video/post to reverse-engineer what works. */}
+      <div className="border-t border-hairline p-5">
+        <LinkBreakdown
+          title="Break down a reference"
+          hint="Drop a viral video or post — we'll reverse-engineer the hooks."
+        />
+      </div>
     </section>
   );
 }

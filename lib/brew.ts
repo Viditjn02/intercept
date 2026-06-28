@@ -75,11 +75,23 @@ export interface BrandInfo {
   footerNote?: string;
 }
 
+/** Visual structure variant of the designed email. Drives both the live default
+ *  template and the `layout` hint sent to Brew. */
+export type EmailLayout = "minimal" | "branded" | "announcement";
+
+/** Writing-tone hint forwarded to Brew. (No effect on the default template —
+ *  Brew uses it to phrase/format on the server render.) */
+export type EmailTone = "friendly" | "direct" | "formal" | "playful";
+
 export interface DesignEmailArgs {
   subject: string;
   /** Plain-text draft — the cold-email copy a human approved. */
   body: string;
   brand?: BrandInfo;
+  /** Visual structure variant. Defaults to "branded". */
+  layout?: EmailLayout;
+  /** Writing-tone hint for Brew's server render. */
+  tone?: EmailTone;
   /** Optional single call-to-action button. */
   ctaLabel?: string;
   ctaUrl?: string;
@@ -196,6 +208,8 @@ export async function designEmail(args: DesignEmailArgs): Promise<DesignEmailRes
   if (!subject || !body) return fallback("designEmail needs a subject and body");
 
   const payload: Record<string, unknown> = { subject, body };
+  if (args.layout) payload.layout = args.layout;
+  if (args.tone) payload.tone = args.tone;
   if (args.templateId) payload.template_id = args.templateId;
   if (args.brand) {
     payload.brand = {
@@ -258,10 +272,16 @@ function bodyToHtml(body: string): string {
     .join("");
 }
 
+const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+
 export function defaultTemplate(args: DesignEmailArgs): string {
-  const subject = (args.subject ?? "").trim() || "(no subject)";
+  const subjectRaw = (args.subject ?? "").trim() || "(no subject)";
+  const subject = escapeHtml(subjectRaw);
   const body = (args.body ?? "").trim();
+  const bodyHtml = bodyToHtml(body);
   const brand = args.brand ?? {};
+  const layout: EmailLayout = args.layout ?? "branded";
+
   const accent =
     typeof brand.accentHex === "string" && /^#[0-9a-fA-F]{3,8}$/.test(brand.accentHex.trim())
       ? brand.accentHex.trim()
@@ -278,19 +298,22 @@ export function defaultTemplate(args: DesignEmailArgs): string {
       ? brand.websiteUrl.trim()
       : "";
 
-  const header = safeLogo
+  const ctaUrl =
+    args.ctaUrl && /^https?:\/\//i.test(args.ctaUrl.trim()) ? args.ctaUrl.trim() : "";
+  const ctaLabel = escapeHtml((args.ctaLabel ?? "Learn more").trim() || "Learn more");
+
+  /** A single CTA button, colored per layout. Empty when no URL is set. */
+  const ctaButton = (bg: string, color: string): string =>
+    ctaUrl
+      ? `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="padding:8px 0 2px 0;">
+           <a href="${escapeHtml(ctaUrl)}" style="display:inline-block;background:${bg};color:${color};text-decoration:none;font-size:14px;font-weight:600;padding:11px 22px;border-radius:50px;">${ctaLabel}</a>
+         </td></tr></table>`
+      : "";
+
+  const logoOrCompany = safeLogo
     ? `<img src="${escapeHtml(safeLogo)}" alt="${company || "logo"}" height="28" style="display:block;height:28px;border:0;outline:none;" />`
     : company
       ? `<span style="font-size:16px;font-weight:600;color:${TPL.ink};letter-spacing:-0.2px;">${company}</span>`
-      : "";
-
-  const cta =
-    args.ctaUrl && /^https?:\/\//i.test(args.ctaUrl.trim())
-      ? `<tr><td style="padding:8px 0 4px 0;">
-           <a href="${escapeHtml(args.ctaUrl.trim())}" style="display:inline-block;background:${TPL.ink};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:11px 22px;border-radius:50px;">${escapeHtml(
-             (args.ctaLabel ?? "Learn more").trim() || "Learn more",
-           )}</a>
-         </td></tr>`
       : "";
 
   const signature = fromName
@@ -304,39 +327,80 @@ export function defaultTemplate(args: DesignEmailArgs): string {
         safeSite.replace(/^https?:\/\//i, "").replace(/\/$/, ""),
       )}</a>`
     : "";
+  const footerLine = `${footerSite}${footerSite && footerNote ? " · " : ""}${footerNote}`;
 
-  return `<!doctype html>
+  /** Document shell shared by every layout. */
+  const shell = (inner: string, pageBg: string): string => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light" />
-<title>${escapeHtml(subject)}</title>
+<title>${subject}</title>
 </head>
-<body style="margin:0;padding:0;background:${TPL.surfaceSoft};-webkit-font-smoothing:antialiased;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${TPL.surfaceSoft};">
+<body style="margin:0;padding:0;background:${pageBg};-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${pageBg};">
     <tr>
       <td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${TPL.canvas};border:1px solid ${TPL.hairline};border-radius:16px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-          <tr>
-            <td style="height:6px;background:${accent};line-height:6px;font-size:6px;">&nbsp;</td>
-          </tr>
+        ${inner}
+        <p style="margin:16px 0 0 0;font-size:11px;color:${TPL.inkSoft};font-family:${FONT};">
+          Designed with care · INTERCEPT
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  // ── MINIMAL — a clean, text-forward letter: no card chrome, the accent shows
+  //    only as a small rule under the subject + the CTA fill. ─────────────────
+  if (layout === "minimal") {
+    const inner = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px;background:${TPL.canvas};font-family:${FONT};">
           ${
-            header
-              ? `<tr><td style="padding:24px 32px 0 32px;">${header}</td></tr>`
+            logoOrCompany
+              ? `<tr><td style="padding:6px 4px 0 4px;">${logoOrCompany}</td></tr>`
               : ""
           }
           <tr>
-            <td style="padding:${header ? "16px" : "28px"} 32px 8px 32px;">
-              <h1 style="margin:0;font-size:20px;line-height:1.3;font-weight:600;color:${TPL.ink};letter-spacing:-0.3px;">${escapeHtml(
-                subject,
-              )}</h1>
+            <td style="padding:${logoOrCompany ? "18px" : "6px"} 4px 0 4px;">
+              <h1 style="margin:0 0 6px 0;font-size:19px;line-height:1.3;font-weight:600;color:${TPL.ink};letter-spacing:-0.3px;">${subject}</h1>
+              <div style="width:40px;height:3px;background:${accent};border-radius:3px;line-height:3px;font-size:3px;">&nbsp;</div>
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 32px 24px 32px;">
-              ${bodyToHtml(body)}
-              <table role="presentation" cellpadding="0" cellspacing="0">${cta}</table>
+            <td style="padding:16px 4px 8px 4px;">
+              ${bodyHtml}
+              ${ctaButton(TPL.ink, "#ffffff")}
+              ${signature}
+            </td>
+          </tr>
+          ${
+            footerLine.trim()
+              ? `<tr><td style="padding:18px 4px 0 4px;">
+                   <div style="border-top:1px solid ${TPL.hairline};padding-top:12px;">
+                     <p style="margin:0;font-size:12px;line-height:1.5;color:${TPL.inkSoft};">${footerLine}</p>
+                   </div>
+                 </td></tr>`
+              : ""
+          }
+        </table>`;
+    return shell(inner, TPL.canvas);
+  }
+
+  // ── ANNOUNCEMENT — a bold accent header band with the subject reversed on the
+  //    accent, then a centered CTA. Reads like a product/launch announcement. ─
+  if (layout === "announcement") {
+    const inner = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${TPL.canvas};border:1px solid ${TPL.hairline};border-radius:16px;overflow:hidden;font-family:${FONT};">
+          <tr>
+            <td style="background:${accent};padding:30px 32px;text-align:center;">
+              ${logoOrCompany ? `<div style="margin-bottom:12px;">${logoOrCompany}</div>` : ""}
+              <h1 style="margin:0;font-size:24px;line-height:1.25;font-weight:700;color:${TPL.ink};letter-spacing:-0.4px;">${subject}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:26px 32px 8px 32px;">
+              ${bodyHtml}
+              <div style="text-align:center;">${ctaButton(TPL.ink, "#ffffff")}</div>
               ${signature}
             </td>
           </tr>
@@ -345,18 +409,43 @@ export function defaultTemplate(args: DesignEmailArgs): string {
           </tr>
           <tr>
             <td style="padding:16px 32px 28px 32px;">
-              <p style="margin:0;font-size:12px;line-height:1.5;color:${TPL.inkSoft};">
-                ${footerSite}${footerSite && footerNote ? " · " : ""}${footerNote}
-              </p>
+              <p style="margin:0;font-size:12px;line-height:1.5;color:${TPL.inkSoft};">${footerLine}</p>
             </td>
           </tr>
-        </table>
-        <p style="margin:16px 0 0 0;font-size:11px;color:${TPL.inkSoft};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-          Designed with care · INTERCEPT
-        </p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+        </table>`;
+    return shell(inner, TPL.surfaceSoft);
+  }
+
+  // ── BRANDED (default) — accent top rule, logo header, rounded card. ─────────
+  const inner = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${TPL.canvas};border:1px solid ${TPL.hairline};border-radius:16px;overflow:hidden;font-family:${FONT};">
+          <tr>
+            <td style="height:6px;background:${accent};line-height:6px;font-size:6px;">&nbsp;</td>
+          </tr>
+          ${
+            logoOrCompany
+              ? `<tr><td style="padding:24px 32px 0 32px;">${logoOrCompany}</td></tr>`
+              : ""
+          }
+          <tr>
+            <td style="padding:${logoOrCompany ? "16px" : "28px"} 32px 8px 32px;">
+              <h1 style="margin:0;font-size:20px;line-height:1.3;font-weight:600;color:${TPL.ink};letter-spacing:-0.3px;">${subject}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 24px 32px;">
+              ${bodyHtml}
+              ${ctaButton(TPL.ink, "#ffffff")}
+              ${signature}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px;"><div style="border-top:1px solid ${TPL.hairline};"></div></td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 28px 32px;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:${TPL.inkSoft};">${footerLine}</p>
+            </td>
+          </tr>
+        </table>`;
+  return shell(inner, TPL.surfaceSoft);
 }

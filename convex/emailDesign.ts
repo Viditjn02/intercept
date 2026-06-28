@@ -33,6 +33,7 @@ import { query, mutation, action } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { sendMessage } from "../lib/agentmail";
+import { designEmail } from "../lib/brew";
 
 // The send-result shape the UI references expect: a subset of lib/agentmail's
 // SendMessageResult ({ sent, id?, threadId?, from?, to?, reason? }).
@@ -196,6 +197,7 @@ export const sendDesigned = action({
     let subject = args.subject?.trim() || undefined;
     let html = args.html?.trim() || undefined;
     let body = args.body?.trim() || undefined;
+    let tplBrand: Doc<"emailTemplates">["brand"] | undefined;
 
     if (args.templateId) {
       const tpl: Doc<"emailTemplates"> | null = await ctx.runQuery(
@@ -207,10 +209,21 @@ export const sendDesigned = action({
         subject = subject || tpl.subject?.trim() || undefined;
         html = html ?? (tpl.html?.trim() || undefined);
         body = body ?? (tpl.body?.trim() || undefined);
+        tplBrand = tpl.brand;
       }
     }
 
     const resolvedSubject = subject?.trim();
+
+    // "Brew renders on send": when copy is present but no HTML was supplied (the
+    // client preview is only a stand-in), render a branded email here — this is
+    // the side that holds the real BREW_API_KEY. designEmail never throws and
+    // degrades to the default branded template, so the send is never blocked.
+    if (!html && resolvedSubject && body) {
+      const designed = await designEmail({ subject: resolvedSubject, body, brand: tplBrand });
+      html = designed.html;
+    }
+
     const resolvedText = resolveText(body, html);
     if (!resolvedSubject || !resolvedText) {
       return {

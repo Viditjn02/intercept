@@ -105,14 +105,22 @@ export const CommandBar = forwardRef<CommandBarHandle, CommandBarProps>(
         className={cn(
           // Full-width layer so the pill can centre itself; clicks pass through
           // the gutters but not the pill (pointer-events re-enabled below).
-          "pointer-events-none flex w-full justify-center px-md pb-lg",
+          "pointer-events-none relative flex w-full justify-center px-md pb-lg",
           className,
         )}
       >
+        {/* Scrim — fades scrolling content into the canvas BEFORE it reaches the
+            bar, and gives the pill a solid backing so nothing shows through it
+            (founder: "nothing should scroll behind the command bar"). Token-based
+            so it tracks the light/dark canvas. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-12 bottom-0 bg-gradient-to-t from-canvas via-canvas/92 to-transparent"
+        />
         <form
           onSubmit={onFormSubmit}
           className={cn(
-            "glass-1 pointer-events-auto flex w-full max-w-[680px] items-center gap-sm",
+            "glass-1 pointer-events-auto relative z-10 flex w-full max-w-[680px] items-center gap-sm",
             "rounded-pill border border-hairline pl-xs pr-xs py-1.5 shadow-glass-1",
             "transition-shadow focus-within:shadow-glass-2",
             disabled && "opacity-60",

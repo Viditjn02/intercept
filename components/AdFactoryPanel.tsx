@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
+import LinkBreakdown from "./LinkBreakdown";
 
 // ============================================================================
 // AdFactoryPanel — AI Ad Factory · CREATE / REPLICATE. Replaces DesignPanel.
@@ -183,6 +184,14 @@ export default function AdFactoryPanel({ runId }: AdFactoryPanelProps) {
           ))}
         </div>
       )}
+
+      {/* Subtle: break down a reference link into angles & hooks for the next ad. */}
+      <div className="border-t border-hairline p-5">
+        <LinkBreakdown
+          title="Inspired by a link? Drop it"
+          hint="Paste a competitor ad or video — we'll pull the angles & hooks."
+        />
+      </div>
     </section>
   );
 }

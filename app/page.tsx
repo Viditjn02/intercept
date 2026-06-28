@@ -227,18 +227,20 @@ export default function Home() {
             <CommandBar targetUrl={targetUrl} onSubmit={handleCommand} />
           </div>
 
-          {/* History / Sequence — opt-in drawer button (bottom-left so it clears
-              the centred command bar + the corner Blip). */}
+          {/* Run transcript — opt-in READ-ONLY history drawer (bottom-left so it
+              clears the centred command bar + the corner Blip). Distinct from the
+              command bar: the bar is where you TYPE; this is the record of what
+              ran. */}
           <button
             type="button"
             onClick={() => setHistoryOpen(true)}
-            title="Open the chat history / full sequence"
+            title="Open the run transcript — a read-only history of this conversation + run. Type new commands in the command bar below."
             className="glass-1 pointer-events-auto absolute bottom-6 left-4 z-30 inline-flex items-center gap-1.5 rounded-pill border border-hairline px-3 py-2 text-[12px] font-fig-link text-ink shadow-glass-1 transition-colors hover:bg-surface-soft"
           >
             <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 text-ink/60" aria-hidden>
               <path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
             </svg>
-            Sequence
+            Transcript
           </button>
 
           {/* The chat history / full sequence as a right slide-over (reuses
@@ -253,9 +255,14 @@ export default function Home() {
               />
               <aside className="animate-drawer-in glass-1 flex h-full w-full max-w-[440px] flex-col border-l border-hairline">
                 <header className="flex shrink-0 items-center justify-between border-b border-hairline px-4 py-2.5">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink/45">
-                    Sequence · chat history
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-fig-card text-[12.5px] tracking-tight text-ink">
+                      Run transcript
+                    </span>
+                    <span className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.16em] text-ink/45">
+                      Read-only history · type in the command bar
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setHistoryOpen(false)}
@@ -315,32 +322,94 @@ export default function Home() {
 }
 
 // ----------------------------------------------------------------------------
-// AutonomyToggle — the 24/7 switch. Reads/writes the convex `settings` singleton
-// directly (self-contained). ON → INTERCEPT keeps the radar + outreach running;
-// OFF (default) → each play runs once and stops.
+// AutonomyToggle — the 24/7 switch, made PROMINENT + self-explaining (founder
+// didn't notice it / "no one would understand what it is"). A clearly-labeled
+// "Autonomous · 24/7" pill with an obvious sliding ON/OFF switch, a live caption
+// under the label, and a hover tooltip explaining what it does. Reads/writes the
+// convex `settings` singleton directly; on toggle it also asks Blip to explain.
+//   ON  → INTERCEPT keeps the radar + outreach running 24/7.
+//   OFF → each play runs once and stops (default).
 // ----------------------------------------------------------------------------
 function AutonomyToggle() {
   const settings = useQuery(api.settings.getSettings, {});
   const setAutonomous = useMutation(api.settings.setAutonomous);
   const on = settings?.autonomous ?? false;
+
+  const toggle = () => {
+    const next = !on;
+    void setAutonomous({ autonomous: next }).catch(() => {});
+    // Have Blip narrate the change so the switch is never a mystery.
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("intercept:blip-say", {
+            detail: {
+              text: next
+                ? "24/7 mode ON — I'll keep watching + drafting."
+                : "24/7 mode OFF — each play runs once.",
+            },
+          }),
+        );
+      } catch {
+        /* never break the toggle if dispatch fails */
+      }
+    }
+  };
+
   return (
-    <button
-      type="button"
-      onClick={() => void setAutonomous({ autonomous: !on }).catch(() => {})}
-      title="24/7 autonomous mode — ON: keep monitoring + generating outreach; OFF: each play runs once and stops."
+    <div
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
-        on
-          ? "border-success/40 bg-success/10 text-ink"
-          : "border-hairline bg-surface-soft text-ink/55 hover:text-ink",
+        "group relative inline-flex items-center gap-2.5 rounded-pill border px-3 py-1.5 transition-colors",
+        on ? "border-success/40 bg-success/10" : "border-hairline bg-surface-soft",
       )}
     >
+      <div className="flex flex-col leading-none">
+        <span className="font-fig-card text-[12px] tracking-tight text-ink">
+          Autonomous · 24/7
+        </span>
+        <span
+          className={cn(
+            "mt-1 font-mono text-[9px] uppercase tracking-wide",
+            on ? "text-success" : "text-ink/45",
+          )}
+        >
+          {on ? "On · running 24/7" : "Off · runs once"}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="Autonomous 24/7 mode"
+        onClick={toggle}
+        className={cn(
+          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20",
+          on ? "bg-success" : "bg-ink/20",
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+            on ? "translate-x-[18px]" : "translate-x-0.5",
+          )}
+        />
+      </button>
+
+      {/* hover/focus caption — explains what the switch actually does */}
       <span
-        aria-hidden
-        className={cn("h-1.5 w-1.5 rounded-full", on ? "animate-pulse bg-success" : "bg-ink/25")}
-      />
-      24/7 {on ? "On" : "Off"}
-    </button>
+        role="tooltip"
+        className={cn(
+          "pointer-events-none absolute right-0 top-full z-50 mt-2 w-60 rounded-lg border border-hairline",
+          "bg-canvas px-3 py-2 text-[11px] leading-snug text-ink/70 shadow-glass-1",
+          "opacity-0 transition-opacity duration-150 group-hover:opacity-100",
+        )}
+      >
+        Keeps the radar + outreach running 24/7. Off: each play runs once and stops.
+      </span>
+    </div>
   );
 }
 

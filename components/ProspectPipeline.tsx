@@ -26,10 +26,12 @@ import GlareCard from "./ui/GlareCard";
 // ============================================================================
 
 // ---------------------------------------------------------------------------
-// FLOW LANES — the founder-legible left→right story. Each prospect is placed in
-// exactly one lane by laneFor() (stage + its drafted/sent emails). Hexes reuse
-// the shared pastel block palette so the pipeline + outreach queue read as one
-// system. `rank` drives the funnel (how many prospects reached this lane).
+// FLOW LANES — the founder-legible left→right funnel. laneFor() resolves each
+// prospect's FURTHEST lane (stage + its drafted/sent emails) → a `rank`; a
+// prospect then appears in EVERY lane it has reached (rank >= the lane's rank),
+// so the leading lanes stay full and each lane's count equals the funnel number.
+// Hexes reuse the shared pastel block palette so the pipeline + outreach queue
+// read as one system. `rank` drives the funnel (how many prospects reached this lane).
 // ---------------------------------------------------------------------------
 type FlowLane = "sourced" | "qualified" | "drafted" | "sent" | "replied";
 
@@ -45,10 +47,12 @@ const LANE_META: Record<FlowLane | "skipped", { label: string; hex: string; blur
 };
 
 /**
- * Place a prospect in a single flow lane from its stage AND its email(s). This is
- * what makes the 12 sourced prospects actually appear: a freshly-sourced row
- * (stage "enriched") lands in "Sourced"; once the writer drafts it, it moves to
- * "Drafted"; the sender pushes it to "Sent"; a reply lands it in "Replied".
+ * Resolve a prospect's FURTHEST flow lane from its stage AND its email(s). The
+ * caller then renders it into every lane up to and including this one (cumulative
+ * funnel). This is what makes the 12 sourced prospects actually appear: a
+ * freshly-sourced row (stage "enriched") reaches "Sourced"; once the writer
+ * drafts it, it reaches "Drafted" (and still counts under Sourced + Qualified);
+ * the sender pushes it to "Sent"; a reply lands it in "Replied".
  */
 function laneFor(p: ProspectDoc, emails: EmailDoc[]): FlowLane | "skipped" {
   if (p.stage === "skipped") return "skipped";
@@ -200,26 +204,39 @@ export default function ProspectPipeline({ runId }: { runId: Id<"runs"> }) {
       emailsByProspect.set(e.prospectId, arr);
     }
 
-    const byLane = new Map<FlowLane, ProspectDoc[]>();
-    for (const lane of FLOW_LANES) byLane.set(lane, []);
+    // Resolve each prospect's FURTHEST lane (stage + its email state) → a rank.
+    // A skipped prospect was still SOURCED, so it counts at rank 0 (it shows in
+    // the "Sourced" lane) AND is listed in the Skipped off-ramp.
+    const all = prospects ?? [];
     const skipped: ProspectDoc[] = [];
-
-    // reach[k] = prospects that made it AT LEAST to lane rank k (the funnel).
-    const reach = [0, 0, 0, 0, 0];
-
-    for (const p of prospects ?? []) {
+    const ranked: { p: ProspectDoc; rank: number }[] = [];
+    for (const p of all) {
       const lane = laneFor(p, emailsByProspect.get(p._id) ?? []);
       if (lane === "skipped") {
         skipped.push(p);
-        reach[0] += 1; // a skipped prospect WAS still sourced
+        ranked.push({ p, rank: LANE_META.sourced.rank });
         continue;
       }
-      byLane.get(lane)!.push(p);
-      for (let k = 0; k <= LANE_META[lane].rank; k++) reach[k] += 1;
+      ranked.push({ p, rank: LANE_META[lane].rank });
     }
 
-    const total = prospects?.length ?? 0;
-    const verified = (prospects ?? []).filter((p) => p.emailVerified).length;
+    // CUMULATIVE FUNNEL — the fix for the "empty Sourced/Qualified columns" bug.
+    // A prospect belongs to EVERY lane it has reached (its furthest rank >= the
+    // lane's rank), not just its single furthest lane. That fills the leading
+    // lanes (all 12 were sourced; the 7 that qualified also show under Qualified
+    // and Drafted) and makes each lane's count badge equal the header funnel.
+    // reach[k] (the funnel) is therefore exactly the size of lane k.
+    const byLane = new Map<FlowLane, ProspectDoc[]>();
+    const reach = [0, 0, 0, 0, 0];
+    for (const lane of FLOW_LANES) {
+      const laneRank = LANE_META[lane].rank;
+      const items = ranked.filter((r) => r.rank >= laneRank).map((r) => r.p);
+      byLane.set(lane, items);
+      reach[laneRank] = items.length;
+    }
+
+    const total = all.length;
+    const verified = all.filter((p) => p.emailVerified).length;
     return { byLane, skipped, total, verified, reach };
   }, [prospects, emails]);
 

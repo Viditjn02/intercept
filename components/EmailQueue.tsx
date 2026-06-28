@@ -18,26 +18,44 @@ import type { EmailDoc } from "./types";
 // EmailQueue — the 24/7 outreach approval gate, read as a lifecycle FLOW:
 // Awaiting approval → Approved → Sent → Replied. Signal-grounded drafts from the
 // writer agent; nothing leaves without a human Approve, and only the sender
-// (AgentMail) flips approved → sent. Each draft also offers "Design email", which
-// hands the draft off to the email designer via a window CustomEvent (another
-// surface listens). Reads emails:byRun reactively.
+// (AgentMail) flips approved → sent. ONE "Email Studio" button at the top of the
+// board opens the global email designer (the EmailDesigner drawer listens for
+// `intercept:open-email-designer`) with the top draft prefilled and the full list
+// of open drafts in tow — inside the studio the human switches draft / starts
+// blank and DESIGNS. Reads emails:byRun reactively.
 // ============================================================================
 
-/** Fire-and-forget handoff to the email designer (built elsewhere). */
-function openEmailDesigner(email: EmailDoc): void {
+/** A draft handed to the Email Studio so the human can switch between them. */
+interface StudioDraft {
+  emailId: Id<"emails">;
+  to?: string;
+  subject?: string;
+  body?: string;
+  label?: string;
+}
+
+/**
+ * Open the global Email Studio. The first draft (if any) is prefilled; the whole
+ * `drafts` list rides along so the studio can offer a draft switcher + "start
+ * blank". Fire-and-forget — the EmailDesigner drawer is mounted once at app root.
+ */
+function openEmailStudio(emails: EmailDoc[]): void {
   if (typeof window === "undefined") return;
+  const drafts: StudioDraft[] = emails.map((e) => ({
+    emailId: e._id,
+    to: e.to ?? undefined,
+    subject: e.subject,
+    body: e.body,
+    label: e.to ? `to ${e.to}` : e.signalRef ?? e.subject,
+  }));
+  const top = drafts[0];
   window.dispatchEvent(
     new CustomEvent("intercept:open-email-designer", {
       detail: {
-        id: email._id,
-        emailId: email._id,
-        prospectId: email.prospectId,
-        to: email.to ?? null,
-        subject: email.subject,
-        body: email.body,
-        step: email.step,
-        kind: email.kind,
-        signalRef: email.signalRef ?? null,
+        ...(top
+          ? { emailId: top.emailId, to: top.to, subject: top.subject, body: top.body }
+          : {}),
+        drafts,
       },
     }),
   );
@@ -91,8 +109,6 @@ function EmailRow({ email }: { email: EmailDoc }) {
       setBusy(null);
     }
   }, [sendEmail, email._id]);
-
-  const design = useCallback(() => openEmailDesigner(email), [email]);
 
   return (
     <div className="rounded-lg border border-hairline bg-canvas p-3">
@@ -173,20 +189,6 @@ function EmailRow({ email }: { email: EmailDoc }) {
               {busy === "send" ? "Sending…" : "Send via AgentMail"}
             </button>
           )}
-          {/* Design email — hands the draft to the email designer surface. */}
-          <button
-            onClick={design}
-            title="Open this draft in the email designer"
-            className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-canvas px-3 py-1.5 text-[12px] font-fig-link text-ink/80 transition-colors hover:bg-surface-soft hover:text-ink"
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
-              <path d="M12 19l7-7 3 3-7 7-3-3z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-              <path d="M2 2l7.586 7.586" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              <circle cx="11" cy="11" r="2" stroke="currentColor" strokeWidth="1.8" />
-            </svg>
-            Design email
-          </button>
           {note && <span className="text-[11px] text-ink/50">{note}</span>}
         </div>
       )}
@@ -261,6 +263,15 @@ export default function EmailQueue({ runId }: { runId: Id<"runs"> }) {
   const awaiting = groups.draft.length;
   const skipped = groups.skipped.length;
 
+  // Drafts the studio can design: anything not yet sent. Top one is prefilled.
+  const designable = useMemo(
+    () =>
+      [...groups.draft, ...groups.approved].sort(
+        (a, b) => a.step - b.step || a.createdAt - b.createdAt,
+      ),
+    [groups.draft, groups.approved],
+  );
+
   // Funnel readout, consistent with the pipeline's left→right story.
   const funnel: { label: string; n: number }[] = [
     { label: "awaiting", n: groups.draft.length },
@@ -271,7 +282,7 @@ export default function EmailQueue({ runId }: { runId: Id<"runs"> }) {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-[15px] font-fig-headline text-ink">Outreach queue</h3>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-ink/60">
@@ -284,11 +295,29 @@ export default function EmailQueue({ runId }: { runId: Id<"runs"> }) {
             ))}
           </div>
         </div>
-        {awaiting > 0 && (
-          <span className="caption shrink-0 rounded-full bg-block-cream px-3 py-1 text-ink">
-            {awaiting} awaiting approval
-          </span>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {/* ONE entry point — opens the Email Studio with the top draft + the
+              rest of the open drafts so the human can design + switch inside. */}
+          <button
+            type="button"
+            onClick={() => openEmailStudio(designable)}
+            title="Open the Email Studio to design a branded email"
+            className="inline-flex items-center gap-1.5 rounded-pill bg-ink px-4 py-2 text-[12.5px] font-fig-link text-on-primary transition-opacity hover:opacity-90"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden>
+              <path d="M12 19l7-7 3 3-7 7-3-3z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+              <path d="M2 2l7.586 7.586" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              <circle cx="11" cy="11" r="2" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+            Email Studio
+          </button>
+          {awaiting > 0 && (
+            <span className="caption rounded-full bg-block-cream px-3 py-1 text-ink">
+              {awaiting} awaiting approval
+            </span>
+          )}
+        </div>
       </div>
 
       {(emails?.length ?? 0) === 0 ? (

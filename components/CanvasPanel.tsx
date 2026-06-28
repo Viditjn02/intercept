@@ -622,7 +622,7 @@ function CanvasForRun({
     >
       {/* pb-28 clears the workspace's floating command bar that now overlays the
           full-width canvas (no more permanent chat column). */}
-      <div className="mx-auto w-full max-w-4xl px-5 pb-28 pt-5">
+      <div className="mx-auto w-full max-w-4xl px-5 pb-32 pt-5">
         {/* run switcher (only when more than one run) */}
         {runs.length > 1 && (
           <div className="mb-4 flex flex-wrap items-center gap-1.5">

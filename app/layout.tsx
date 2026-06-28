@@ -35,58 +35,140 @@ export default function RootLayout({
       suppressHydrationWarning // theme class is set pre-paint by the script below
     >
       <head>
-        {/* Benign-rejection guard — FIRST thing in <head> so its listeners are
-            registered at HTML-parse time, BEFORE any Next.js / React-refresh dev
-            chunk attaches its own error-overlay handlers. Capture-phase + first
-            registration means we run before the overlay, and
-            stopImmediatePropagation prevents it from ever seeing a benign event.
+        {/* Benign-rejection guard — FIRST node in <head> so its window listeners
+            are registered at HTML-parse time, BEFORE any Next.js / React-refresh
+            dev chunk (loaded later, in <body>) attaches its own error-overlay
+            handlers. Capture phase + first-registration means we run first;
+            preventDefault() stops the console spew and stopImmediatePropagation()
+            stops the overlay's listener from ever seeing the event.
 
-            What this swallows (and ONLY this): expected network cancellations —
-            TimeoutError / AbortError / "Load failed" / "Failed to fetch" and the
-            same transport noise Convex's local backend emits every time
-            `convex dev` hot-reloads and drops its in-flight WebSocket requests.
-            These are harmless (the client reconnects) but would otherwise pop
-            Next's full-screen dev overlay and block the UI.
+            SUPPRESSES (and only this) the recurring BENIGN rejections that would
+            otherwise pop Next's full-screen dev overlay over a perfectly healthy
+            app:
+              • null / empty reason — Promise.reject() with no arg, opaque events.
+              • DOMException Timeout/Abort, plus aborted/timed-out fetches — exactly
+                the in-flight requests Convex's client drops every time `convex dev`
+                hot-reloads and its WebSocket reconnects (the client recovers on its
+                own; nothing is lost).
+              • benign network noise: "Load failed" / "Failed to fetch" /
+                "NetworkError when attempting to fetch" / "network connection lost".
+              • injected browser-EXTENSION scripts — their frames surface under a
+                masked / opaque source (webkit-masked-url, a *-extension:// URL, or
+                a cross-origin "Script error.") with NO frame from our own origin.
+                That rejection is not our bug and is not fixable in our code.
+              • a rejection with NO usable stack and nothing actionable.
 
-            What this DELIBERATELY lets through: every real bug — TypeErrors,
-            thrown render errors, missing-Convex-function errors, etc. We never
-            blanket-hide; if a genuine error reaches here it still surfaces so it
-            can be fixed at the source. */}
+            DELIBERATELY LETS THROUGH every real, traceable bug: a TypeError, a
+            thrown render error, a missing-Convex-function error — anything whose
+            stack points at OUR code (this origin / localhost / _next / *.convex.*)
+            still surfaces, so it gets fixed at the source. We never blanket-hide. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
                 try {
-                  function isBenign(reason) {
-                    if (!reason) return false;
-                    var name = "";
-                    try {
-                      name = String(
-                        reason.name ||
-                          (reason.constructor && reason.constructor.name) ||
-                          ""
-                      ).toLowerCase();
-                    } catch (e) {}
-                    if (name === "timeouterror" || name === "aborterror") return true;
-                    var msg = "";
-                    try {
-                      msg = String(reason.message != null ? reason.message : reason);
-                    } catch (e) {
-                      msg = "";
+                  var ORIGIN = "";
+                  try { ORIGIN = String((location && location.origin) || "").toLowerCase(); } catch (e) {}
+
+                  var BENIGN_NAMES = ["timeouterror", "aborterror"];
+                  var BENIGN_MSG = [
+                    "timeouterror",
+                    "aborterror",
+                    "operation timed out",
+                    "operation was aborted",
+                    "the operation was aborted",
+                    "the user aborted a request",
+                    "request aborted",
+                    "fetch aborted",
+                    "load failed",
+                    "failed to fetch",
+                    "network request failed",
+                    "networkerror when attempting to fetch",
+                    "the network connection was lost",
+                    "script error"
+                  ];
+                  // Masked / browser-extension source markers. Extension-injected
+                  // scripts and opaque cross-origin frames surface under these.
+                  var MASKED = [
+                    "webkit-masked-url",
+                    "safari-extension://",
+                    "safari-web-extension://",
+                    "chrome-extension://",
+                    "moz-extension://",
+                    "ms-browser-extension://",
+                    "extension://",
+                    "extensions::"
+                  ];
+
+                  function lower(s) {
+                    try { return String(s == null ? "" : s).toLowerCase(); } catch (e) { return ""; }
+                  }
+                  function has(hay, list) {
+                    for (var i = 0; i < list.length; i++) {
+                      if (hay.indexOf(list[i]) !== -1) return true;
                     }
-                    msg = msg.toLowerCase();
+                    return false;
+                  }
+                  function nameOf(r) {
+                    try { return lower(r && (r.name || (r.constructor && r.constructor.name))); }
+                    catch (e) { return ""; }
+                  }
+                  function msgOf(r) {
+                    try {
+                      if (r == null) return "";
+                      if (typeof r === "string") return lower(r);
+                      return lower(r.message != null ? r.message : r);
+                    } catch (e) { return ""; }
+                  }
+                  function stackOf(r) {
+                    try { return lower(r && r.stack); } catch (e) { return ""; }
+                  }
+                  // A stack that points at OUR code — the signature of a real,
+                  // fixable error (as opposed to an injected/extension frame).
+                  function ownFrame(stack) {
+                    if (!stack) return false;
+                    if (ORIGIN && stack.indexOf(ORIGIN) !== -1) return true;
                     return (
-                      msg.indexOf("timeouterror") !== -1 ||
-                      msg.indexOf("aborterror") !== -1 ||
-                      msg.indexOf("operation timed out") !== -1 ||
-                      msg.indexOf("operation was aborted") !== -1 ||
-                      msg.indexOf("the user aborted a request") !== -1 ||
-                      msg.indexOf("load failed") !== -1 ||
-                      msg.indexOf("failed to fetch") !== -1 ||
-                      msg.indexOf("network request failed") !== -1 ||
-                      msg.indexOf("networkerror when attempting to fetch") !== -1
+                      stack.indexOf("localhost") !== -1 ||
+                      stack.indexOf("127.0.0.1") !== -1 ||
+                      stack.indexOf("_next") !== -1 ||
+                      stack.indexOf(".convex.") !== -1
                     );
                   }
+
+                  function isBenign(reason, source) {
+                    // 1) null / empty reason.
+                    if (reason == null) return true;
+                    if (typeof reason === "string" && reason.trim() === "") return true;
+
+                    var name = nameOf(reason);
+                    var msg = msgOf(reason);
+                    var stack = stackOf(reason);
+                    var src = lower(source);
+
+                    // 2) DOMException Timeout / Abort (by name or numeric code).
+                    if (has(name, BENIGN_NAMES)) return true;
+                    try {
+                      if (typeof DOMException !== "undefined" && reason instanceof DOMException) {
+                        if (reason.code === 20 /* ABORT_ERR */ || reason.code === 23 /* TIMEOUT_ERR */) return true;
+                      }
+                    } catch (e) {}
+
+                    // 3) Known benign network noise (incl. Convex dev WS reconnect drops).
+                    if (has(msg, BENIGN_MSG)) return true;
+
+                    // 4) Masked / browser-extension source with NO frame from our code.
+                    if (has(src, MASKED)) return true;
+                    if (has(stack, MASKED) && !ownFrame(stack)) return true;
+
+                    // 5) No usable stack and nothing actionable -> can't trace to us.
+                    var isErrorLike = name !== "" && name !== "object";
+                    if (!stack && msg.trim() === "" && !isErrorLike) return true;
+
+                    // Otherwise a real, traceable app error -> let the overlay show it.
+                    return false;
+                  }
+
                   function swallow(e) {
                     try {
                       if (e && typeof e.preventDefault === "function") e.preventDefault();
@@ -94,18 +176,21 @@ export default function RootLayout({
                       if (e && typeof e.stopPropagation === "function") e.stopPropagation();
                     } catch (err) {}
                   }
+
                   window.addEventListener(
                     "unhandledrejection",
                     function (e) {
-                      if (isBenign(e && e.reason)) swallow(e);
+                      try { if (isBenign(e && e.reason, "")) swallow(e); } catch (err) {}
                     },
                     true
                   );
                   window.addEventListener(
                     "error",
                     function (e) {
-                      var reason = e && (e.error != null ? e.error : e.message);
-                      if (isBenign(reason)) swallow(e);
+                      try {
+                        var reason = e && (e.error != null ? e.error : e.message);
+                        if (isBenign(reason, e && e.filename)) swallow(e);
+                      } catch (err) {}
                     },
                     true
                   );
