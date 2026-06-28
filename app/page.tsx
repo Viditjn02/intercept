@@ -14,6 +14,7 @@ import DashboardHome from "@/components/DashboardHome";
 import QuickActions from "@/components/QuickActions";
 import CommandBar from "@/components/CommandBar";
 import EmailDesigner from "@/components/EmailDesigner";
+import ConversationSimulator from "@/components/ConversationSimulator";
 import TargetGate from "@/components/TargetGate";
 import { sendMessageRef } from "@/components/chatApi";
 import { type Capability, type Intent, spawnsRun } from "@/lib/contract";
@@ -329,6 +330,10 @@ export default function Home() {
       {/* Email Designer — a global drawer; opens on the outreach "Design email"
           action (intercept:open-email-designer). Renders nothing until then. */}
       <EmailDesigner />
+
+      {/* Conversation Simulator — a global modal; opens on a prospect card's
+          "Simulate" action (intercept:simulate-convo). Renders nothing until then. */}
+      <ConversationSimulator />
 
       {/* Target Gate — the PUBLIC-ONLY welcome overlay. Self-gates on
           NEXT_PUBLIC_PUBLIC_MODE === "1" + an unconfigured browser, so on local

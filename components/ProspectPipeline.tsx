@@ -82,6 +82,21 @@ function FitRing({ score }: { score?: number }) {
   );
 }
 
+// Fire the global Conversation Simulator for this prospect (mounted once in
+// app/page.tsx, self-opens on this event). Guarded so a card click never throws.
+function simulateConvo(p: ProspectDoc) {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(
+      new CustomEvent("intercept:simulate-convo", {
+        detail: { prospectId: p._id, name: p.name || p.company },
+      }),
+    );
+  } catch {
+    /* never break the card on a dispatch failure */
+  }
+}
+
 function ProspectCard({ p, lane }: { p: ProspectDoc; lane: FlowLane | "skipped" }) {
   const sig = p.signal;
   const sigMeta = sig ? SIGNAL_META[sig.type] : null;
@@ -148,6 +163,22 @@ function ProspectCard({ p, lane }: { p: ProspectDoc; lane: FlowLane | "skipped" 
           <span className="text-ink/40">{initials(p.name, p.company)}</span>
         )}
       </div>
+
+      {/* Simulate — preview a hypothetical outbound thread for this prospect. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          simulateConvo(p);
+        }}
+        title="Simulate an outbound conversation with this prospect"
+        className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-pill border border-hairline bg-surface-soft px-3 py-1.5 text-[11.5px] font-fig-link text-ink/80 transition-colors hover:border-ink/25 hover:bg-block-mint hover:text-ink"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" className="h-2.5 w-2.5" aria-hidden>
+          <path d="M5 4.5v15l13-7.5z" />
+        </svg>
+        Simulate
+      </button>
     </div>
   );
 }

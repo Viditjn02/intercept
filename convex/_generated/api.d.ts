@@ -33,6 +33,7 @@ import type * as brain from "../brain.js";
 import type * as brief from "../brief.js";
 import type * as campaigns from "../campaigns.js";
 import type * as chat from "../chat.js";
+import type * as conversationSim from "../conversationSim.js";
 import type * as conversations from "../conversations.js";
 import type * as crons from "../crons.js";
 import type * as demo from "../demo.js";
@@ -91,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   brief: typeof brief;
   campaigns: typeof campaigns;
   chat: typeof chat;
+  conversationSim: typeof conversationSim;
   conversations: typeof conversations;
   crons: typeof crons;
   demo: typeof demo;

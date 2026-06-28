@@ -616,8 +616,12 @@ function SidebarBlip({
     SIDEBAR_STATUS[state] ??
     (busy ? SIDEBAR_STATUS.thinking : SIDEBAR_STATUS.idle);
 
+  // Only surface a status when Blip is ACTIVELY doing something — never the
+  // ambient "idle · listening" label (it read as clutter).
+  const showStatus = meta !== SIDEBAR_STATUS.idle;
+
   return (
-    <div className="mx-3 mb-1 mt-0.5 flex flex-col items-center gap-2 rounded-2xl border border-hairline bg-canvas/70 px-3 py-4">
+    <div className="relative mx-3 mb-1 mt-0.5 flex flex-col items-center gap-2 rounded-2xl border border-hairline bg-canvas/70 px-3 py-4">
       <div ref={wrapRef} className="relative">
         <Blip state={state} size={72} gaze={gaze} glow={brain.glow} />
         {brain.learnedDelta > 0 && (
@@ -626,19 +630,22 @@ function SidebarBlip({
           </span>
         )}
       </div>
-      {speech ? (
-        <button
-          type="button"
-          onClick={dismissSpeech}
-          className="max-w-[190px] rounded-xl border border-hairline bg-canvas px-2.5 py-1 text-center text-[11.5px] leading-snug text-ink shadow-sm transition-opacity hover:opacity-80"
-        >
-          {speech}
-        </button>
-      ) : (
+      {showStatus && (
         <span className="caption flex items-center gap-1.5 text-ink">
           <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, meta.pulse && "animate-blink")} />
           <span className="truncate">{meta.label}</span>
         </span>
+      )}
+      {/* The suggestion bubble floats ABSOLUTELY below the card — it overlays the
+          nav rather than growing the card and shifting the whole menu down. */}
+      {speech && (
+        <button
+          type="button"
+          onClick={dismissSpeech}
+          className="absolute left-1/2 top-full z-40 mt-1.5 max-w-[210px] -translate-x-1/2 rounded-xl border border-hairline bg-canvas px-2.5 py-1 text-center text-[11.5px] leading-snug text-ink shadow-lg transition-opacity hover:opacity-80"
+        >
+          {speech}
+        </button>
       )}
     </div>
   );
