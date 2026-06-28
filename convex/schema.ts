@@ -30,6 +30,9 @@ export default defineSchema({
     startedAt: v.number(),
     deadlineAt: v.number(), // hard fan-in deadline (startedAt + ~90s)
     company: v.optional(v.string()),
+    // Canonical apex domain resolved by the router (e.g. "superhuman.com"), so
+    // enrich scrapes the real homepage instead of "https://<raw input>".
+    routedDomain: v.optional(v.string()),
     replay: v.boolean(), // deterministic demo mode (cached fixture)
   }).index("by_status", ["status"]),
 
@@ -68,7 +71,16 @@ export default defineSchema({
     intentScore: v.number(), // 0-100
     intentLabel: v.string(), // browsing | comparing | frustrated | ready_to_buy
     author: v.optional(v.string()),
-  }).index("by_run", ["runId"]),
+    // text-embedding-3-small (1536d) of "title\nsnippet". Optional so existing /
+    // seeded rows without embeddings stay valid (they simply aren't indexed).
+    embedding: v.optional(v.array(v.float64())),
+  })
+    .index("by_run", ["runId"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 1536,
+      filterFields: ["runId"],
+    }),
 
   // The in-thread reply, behind the human-approval gate.
   drafts: defineTable({

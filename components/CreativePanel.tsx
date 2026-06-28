@@ -22,7 +22,8 @@ export default function CreativePanel({ runId }: CreativePanelProps) {
 
   const loading = creative === undefined;
   const status = creative?.status;
-  const ready = status === "done" && !!creative?.url;
+  const playbackUrl = creative?.storageUrl ?? creative?.url ?? null;
+  const ready = status === "done" && !!playbackUrl;
   const failed = status === "failed";
 
   return (
@@ -52,8 +53,8 @@ export default function CreativePanel({ runId }: CreativePanelProps) {
       <div className="aspect-video w-full bg-ink">
         {ready ? (
           <video
-            key={creative.url}
-            src={creative.url}
+            key={playbackUrl}
+            src={playbackUrl ?? undefined}
             controls
             playsInline
             poster={undefined}

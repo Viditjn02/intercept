@@ -96,12 +96,16 @@ export const run = internalAction({
     }
 
     const input = runDoc.input;
+    // Prefer the canonical domain the router resolved (e.g. "superhuman.com")
+    // over the raw input ("Superhuman"), so the HTML fallback scrapes a real
+    // homepage instead of "https://Superhuman".
+    const scrapeTarget = runDoc.routedDomain?.trim() || input;
 
     // 1) Scrape the company's web presence. Failure is non-fatal — we degrade to
     //    an input-only context so the brief is always produced.
     let scrape: ScrapeResult = {};
     try {
-      scrape = ((await enrichCompany(input)) as ScrapeResult) ?? {};
+      scrape = ((await enrichCompany(scrapeTarget)) as ScrapeResult) ?? {};
     } catch {
       scrape = {};
     }

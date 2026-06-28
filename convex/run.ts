@@ -24,15 +24,35 @@ import { upsertBrief } from "./brief";
 // threads the detective found.
 const BOARD_AGENTS: ReadonlySet<string> = new Set<string>(AGENTS);
 
-// Execution plan. Cheap classification + enrichment first, then the detective
-// (the moat — needs enrich context), then the three independent consumers in
-// parallel. `reply` reads threads; `creative` builds the Veo ad; `watcher`
-// monitors. Promise.allSettled means one straggler never blocks the others.
+// Execution plan. Router first (it resolves the canonical domain + persists it
+// onto the run), THEN enrich (which scrapes that domain instead of the raw
+// input), then the detective (the moat — needs enrich context), then the three
+// independent consumers in parallel. `reply` reads threads; `creative` builds
+// the Veo ad; `watcher` tears down a competitor reel (if one is configured).
+// Promise.allSettled means one straggler never blocks the others.
 const PHASES: ReadonlyArray<ReadonlyArray<string>> = [
-  ["router", "enrich"],
+  ["router"],
+  ["enrich"],
   ["detective"],
   ["reply", "creative", "watcher"],
 ];
+
+// Optional competitor reel for the watcher to tear down. There is no per-run
+// reel source today, so this is configured out-of-band. When absent, the
+// orchestrator marks the watcher "skipped" (honest) rather than a no-op "done".
+function competitorReelUrl(): string | undefined {
+  const raw = process.env.HOLMES_COMPETITOR_REEL_URL?.trim();
+  return raw && raw.length > 0 ? raw : undefined;
+}
+
+// Per-agent extra arguments threaded into the agent's `run` action.
+function agentArgs(name: string): Record<string, unknown> {
+  if (name === "watcher") {
+    const reelUrl = competitorReelUrl();
+    return reelUrl ? { reelUrl } : {};
+  }
+  return {};
+}
 
 /**
  * Resolve a swarm agent's `run` action reference by name. Agents live in
@@ -56,6 +76,21 @@ async function runAgent(
   name: string,
 ): Promise<void> {
   const isBoard = BOARD_AGENTS.has(name);
+  const extraArgs = agentArgs(name);
+
+  // The watcher only does real work given a competitor reel. With none, marking
+  // it "done" would misrepresent an idle agent, so we mark it honestly skipped.
+  if (name === "watcher" && extraArgs.reelUrl === undefined) {
+    if (isBoard) {
+      await ctx.runMutation(internal.runs.setAgentStatus, {
+        runId,
+        agent: name,
+        status: "skipped",
+        note: "no competitor reel configured",
+      });
+    }
+    return;
+  }
 
   if (isBoard) {
     await ctx.runMutation(internal.runs.setAgentStatus, {
@@ -71,7 +106,7 @@ async function runAgent(
       throw new Error(`agent "${name}" is not registered`);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await ctx.runAction(ref as any, { runId });
+    await ctx.runAction(ref as any, { runId, ...extraArgs });
 
     if (isBoard) {
       await ctx.runMutation(internal.runs.setAgentStatus, {
@@ -157,20 +192,22 @@ export const finalize = internalMutation({
     // Guarantee a brief exists so the board renders no matter what.
     await upsertBrief(ctx, { runId });
 
-    const settled = rows.map((row) =>
-      row.status === "queued" || row.status === "running"
-        ? "skipped"
-        : row.status,
-    );
-    const total = settled.length;
-    const doneCount = settled.filter((s) => s === "done").length;
+    // A "deadline casualty" = an agent still queued/running at fan-in (just
+    // marked skipped above). An agent ALREADY skipped before the deadline (e.g.
+    // the watcher with no competitor reel) was skipped on purpose and must NOT
+    // downgrade an otherwise-clean run to "partial".
+    const deadlineCasualties = rows.filter(
+      (r) => r.status === "queued" || r.status === "running",
+    ).length;
+    const doneCount = rows.filter((r) => r.status === "done").length;
+    const failedCount = rows.filter((r) => r.status === "failed").length;
 
     const status: "complete" | "partial" | "failed" =
-      total > 0 && doneCount === total
-        ? "complete"
-        : doneCount > 0
-          ? "partial"
-          : "failed";
+      doneCount === 0
+        ? "failed"
+        : failedCount === 0 && deadlineCasualties === 0
+          ? "complete"
+          : "partial";
 
     await ctx.db.patch(runId, { status });
   },

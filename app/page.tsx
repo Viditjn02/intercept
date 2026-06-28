@@ -28,7 +28,7 @@ export default function Home() {
     setSubmitting(true);
     setError(null);
     try {
-      const id = (await createRun({ input })) as Id<"runs">;
+      const id = (await createRun({ input, inputType: "text" })) as Id<"runs">;
       setRunId(id);
     } catch (err) {
       setError(

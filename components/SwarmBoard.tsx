@@ -112,7 +112,7 @@ const AGENT_META: Record<
   },
   watcher: {
     label: "Watcher",
-    tagline: "Scoring buying intent in real time",
+    tagline: "Tearing down competitor video ads",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
         <path

@@ -142,6 +142,13 @@ export const getCreative = query({
       .query("creatives")
       .withIndex("by_run", (q) => q.eq("runId", runId))
       .collect();
-    return creatives.find((c) => c.kind === "video") ?? null;
+    const video = creatives.find((c) => c.kind === "video") ?? null;
+    if (!video) return null;
+    // Resolve a playable URL for the stored asset (reactive — getUrl works in
+    // queries). CreativePanel prefers this Convex-served URL over the external one.
+    const storageUrl = video.storageId
+      ? await ctx.storage.getUrl(video.storageId)
+      : null;
+    return { ...video, storageUrl };
   },
 });

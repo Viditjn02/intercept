@@ -155,6 +155,43 @@ export const setAgentStatus = internalMutation({
   },
 });
 
+/**
+ * Persist the router's resolved classification onto the run. The router calls
+ * this so the downstream enrich agent scrapes the canonical domain instead of
+ * the raw input. Best-effort: only stamps fields that aren't already set, and is
+ * a no-op for empty values.
+ */
+export const applyRouting = internalMutation({
+  args: {
+    runId: v.id("runs"),
+    inputType: v.optional(inputTypeValidator),
+    company: v.optional(v.string()),
+    domain: v.optional(v.string()),
+  },
+  handler: async (ctx, { runId, inputType, company, domain }) => {
+    const run = await ctx.db.get(runId);
+    if (!run) return;
+
+    const patch: {
+      inputType?: typeof run.inputType;
+      company?: string;
+      routedDomain?: string;
+    } = {};
+
+    if (inputType) patch.inputType = inputType;
+
+    const trimmedCompany = company?.trim();
+    if (trimmedCompany && !run.company) patch.company = trimmedCompany;
+
+    const trimmedDomain = domain?.trim();
+    if (trimmedDomain) patch.routedDomain = trimmedDomain;
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(runId, patch);
+    }
+  },
+});
+
 /** Flip the run's terminal status. */
 export const completeRun = internalMutation({
   args: {

@@ -159,6 +159,19 @@ export const run = internalAction({
       (model.company && model.company.trim()) ||
       fallbackCompanyName(input, domain);
 
+    // Persist the resolved classification so enrich scrapes the canonical domain
+    // (not "https://<raw input>"). Best-effort — never block the swarm on this.
+    try {
+      await ctx.runMutation(internal.runs.applyRouting, {
+        runId,
+        inputType,
+        company,
+        domain: domain ?? undefined,
+      });
+    } catch {
+      // Routing is an optimization; a failure here must not stall the router.
+    }
+
     return {
       inputType,
       company,

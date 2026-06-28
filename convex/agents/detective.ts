@@ -11,7 +11,9 @@
 //   3. search reddit + Hacker News for live threads (lib/exa.searchThreads)
 //   4. score each thread's intent 0-100 + label (lib/openai chatJSON)  <-- the moat
 //   5. cluster threads into communities
-//   6. persist via internal.agents.detective.save (cap MAX_COMMUNITIES/MAX_THREADS)
+//   6. persist communities (saveCommunities), then embed each thread and use
+//      ctx.vectorSearch to drop near-duplicates before insertThread (the moat,
+//      capped at MAX_COMMUNITIES/MAX_THREADS)
 //
 // NOTE ON RUNTIME: this module is intentionally NOT a "use node" file. Convex
 // disallows queries/mutations in "use node" files, and the contract requires the
@@ -32,7 +34,7 @@ import {
   MAX_THREADS,
   type IntentLabel,
 } from "../../lib/contract";
-import { chatJSON } from "../../lib/openai";
+import { chatJSON, embed } from "../../lib/openai";
 import { searchThreads } from "../../lib/exa";
 
 // ----------------------------------------------------------------------------
@@ -119,10 +121,9 @@ export const run = internalAction({
 
     if (candidates.length === 0) {
       // Nothing found — persist nothing, let the fan-in render partial.
-      await ctx.runMutation(internal.agents.detective.save, {
+      await ctx.runMutation(internal.agents.detective.saveCommunities, {
         runId,
         communities: [],
-        threads: [],
       });
       return { communities: 0, threads: 0 };
     }
@@ -142,13 +143,51 @@ export const run = internalAction({
 
     const keptCommunityNames = new Set(communities.map((c) => c.name));
 
-    // 5. persist (mutation defined in THIS file)
-    await ctx.runMutation(internal.agents.detective.save, {
-      runId,
-      communities,
-      threads: topThreads.map((t) => ({
-        communityName: keptCommunityNames.has(t.communityName)
-          ? t.communityName
+    // 5. persist communities first, then dedup-insert threads via vector search.
+    //    ctx.vectorSearch reads COMMITTED data and is scoped to this run by the
+    //    `runId` filter, so we insert incrementally (embed -> search -> insert)
+    //    and skip any thread that's a near-duplicate of one already kept.
+    const communityRows = await ctx.runMutation(
+      internal.agents.detective.saveCommunities,
+      { runId, communities },
+    );
+    const idByName = new Map<string, Id<"communities">>(
+      communityRows.map((r) => [r.name, r.id] as const),
+    );
+
+    const DUP_SCORE = 0.9; // cosine > 0.9 (normalized OpenAI vectors) ≈ near-dup
+    const keptVectors: number[][] = []; // in-memory guard for index-visibility lag
+    let inserted = 0;
+
+    for (const t of topThreads) {
+      let embedding: number[] | undefined;
+      try {
+        embedding = await embed(`${t.title}\n${t.snippet}`);
+      } catch {
+        embedding = undefined; // embed failed -> persist without dedup
+      }
+
+      if (embedding) {
+        // Convex-native dedup against threads already persisted THIS run.
+        const matches = await ctx.vectorSearch("threads", "by_embedding", {
+          vector: embedding,
+          limit: 1,
+          filter: (q) => q.eq("runId", runId),
+        });
+        const dupByIndex = (matches[0]?._score ?? 0) > DUP_SCORE;
+        // Belt-and-suspenders: also compare against vectors kept this loop,
+        // covering any index-visibility lag for same-action inserts.
+        const dupInMemory = keptVectors.some(
+          (v) => cosine(v, embedding!) > DUP_SCORE,
+        );
+        if (dupByIndex || dupInMemory) continue; // drop near-duplicate
+        keptVectors.push(embedding);
+      }
+
+      await ctx.runMutation(internal.agents.detective.insertThread, {
+        runId,
+        communityId: keptCommunityNames.has(t.communityName)
+          ? idByName.get(t.communityName)
           : undefined,
         platform: t.platform,
         url: t.url,
@@ -157,17 +196,22 @@ export const run = internalAction({
         intentScore: t.intentScore,
         intentLabel: t.intentLabel,
         author: t.author,
-      })),
-    });
+        embedding,
+      });
+      inserted++;
+    }
 
-    return { communities: communities.length, threads: topThreads.length };
+    return { communities: communities.length, threads: inserted };
   },
 });
 
 // ============================================================================
-// save — persists communities + threads. Defined HERE per the agent contract.
+// saveCommunities / insertThread — persistence split so the action can run the
+// embed -> vectorSearch -> insert dedup loop between writes. Defined HERE per
+// the agent contract. (`save` was replaced by these two; the action owns the
+// dedup logic because ctx.vectorSearch is action-only.)
 // ============================================================================
-export const save = internalMutation({
+export const saveCommunities = internalMutation({
   args: {
     runId: v.id("runs"),
     communities: v.array(
@@ -178,52 +222,32 @@ export const save = internalMutation({
         why: v.string(),
       }),
     ),
-    threads: v.array(
-      v.object({
-        communityName: v.optional(v.string()),
-        platform: v.string(),
-        url: v.string(),
-        title: v.string(),
-        snippet: v.string(),
-        intentScore: v.number(),
-        intentLabel: v.string(),
-        author: v.optional(v.string()),
-      }),
-    ),
   },
-  handler: async (ctx, { runId, communities, threads }) => {
-    // Insert communities first, building a name -> id map for thread linkage.
-    const idByName = new Map<string, Id<"communities">>();
+  handler: async (ctx, { runId, communities }) => {
+    const rows: { name: string; id: Id<"communities"> }[] = [];
     for (const c of communities) {
-      const id = await ctx.db.insert("communities", {
-        runId,
-        name: c.name,
-        platform: c.platform,
-        url: c.url,
-        why: c.why,
-      });
-      idByName.set(c.name, id);
+      const id = await ctx.db.insert("communities", { runId, ...c });
+      rows.push({ name: c.name, id });
     }
+    return rows; // name -> id, rebuilt into a Map in the action
+  },
+});
 
-    for (const t of threads) {
-      const communityId =
-        t.communityName !== undefined
-          ? idByName.get(t.communityName)
-          : undefined;
-      await ctx.db.insert("threads", {
-        runId,
-        communityId,
-        platform: t.platform,
-        url: t.url,
-        title: t.title,
-        snippet: t.snippet,
-        intentScore: t.intentScore,
-        intentLabel: t.intentLabel,
-        author: t.author,
-      });
-    }
-
-    return { communities: communities.length, threads: threads.length };
+export const insertThread = internalMutation({
+  args: {
+    runId: v.id("runs"),
+    communityId: v.optional(v.id("communities")),
+    platform: v.string(),
+    url: v.string(),
+    title: v.string(),
+    snippet: v.string(),
+    intentScore: v.number(),
+    intentLabel: v.string(),
+    author: v.optional(v.string()),
+    embedding: v.optional(v.array(v.float64())),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("threads", args);
   },
 });
 
@@ -585,6 +609,20 @@ function dedupeByUrl(candidates: Candidate[]): Candidate[] {
 function clampScore(n: unknown): number {
   const x = typeof n === "number" && Number.isFinite(n) ? n : 0;
   return Math.max(0, Math.min(100, Math.round(x)));
+}
+
+/** Cosine similarity between two equal-length vectors (in-memory dedup guard). */
+function cosine(a: number[], b: number[]): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom === 0 ? 0 : dot / denom;
 }
 
 function normalizeLabel(label: unknown, score: number): IntentLabel {

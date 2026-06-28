@@ -121,3 +121,27 @@ export async function chatText(
   }
   return content.trim();
 }
+
+const EMBED_MODEL = "text-embedding-3-small";
+const EMBED_DIMENSIONS = 1536;
+
+/**
+ * Embed a single string into a 1536-dim vector for Convex vector search.
+ * Fetch-based (OpenAI SDK) so it runs in Convex's default action runtime.
+ */
+export async function embed(text: string): Promise<number[]> {
+  const client = getClient();
+  const input = text.replace(/\s+/g, " ").trim().slice(0, 8000) || " ";
+  const res = await client.embeddings.create({
+    model: EMBED_MODEL,
+    input,
+    dimensions: EMBED_DIMENSIONS,
+  });
+  const vector = res.data[0]?.embedding;
+  if (!vector || vector.length !== EMBED_DIMENSIONS) {
+    throw new Error(
+      `embed: expected ${EMBED_DIMENSIONS}-dim vector, got ${vector?.length ?? 0}`,
+    );
+  }
+  return vector;
+}

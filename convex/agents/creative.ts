@@ -25,6 +25,7 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { MAX_THREADS } from "../../lib/contract";
 import { generateAd } from "../../lib/veo";
 
@@ -86,6 +87,7 @@ export const save = internalMutation({
     prompt: v.string(),
     model: v.string(),
     url: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const existing = (
@@ -101,6 +103,7 @@ export const save = internalMutation({
       prompt: args.prompt,
       model: args.model,
       url: args.url,
+      storageId: args.storageId,
     };
 
     if (existing) {
@@ -134,12 +137,38 @@ export const run = internalAction({
         aspectRatio: AD_ASPECT_RATIO,
         durationSeconds: AD_DURATION_SECONDS,
       });
+
+      // lib/veo returns { url: undefined } (no throw) on poll-timeout / no video.
+      // Mark failed so the panel shows a clear state instead of an endless spinner.
+      if (!result.url) {
+        await ctx.runMutation(internal.agents.creative.save, {
+          runId,
+          status: "failed",
+          prompt,
+          model: result.model ?? VEO_MODEL,
+        });
+        return;
+      }
+
+      // Persist the asset to Convex File Storage (SSRF-guarded, "use node").
+      // Storage failure never blocks the run — the external Veo URL is the fallback.
+      let storageId: Id<"_storage"> | undefined;
+      try {
+        const stored = await ctx.runAction(internal.storage.storeFromUrl, {
+          url: result.url,
+        });
+        storageId = stored.storageId;
+      } catch {
+        storageId = undefined;
+      }
+
       await ctx.runMutation(internal.agents.creative.save, {
         runId,
         status: "done",
         prompt,
         model: result.model ?? VEO_MODEL,
         url: result.url,
+        storageId,
       });
     } catch (error) {
       // Render failed — record it and return cleanly. The fan-in still ships
