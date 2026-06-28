@@ -11,22 +11,25 @@
  * One source of truth (`state`) drives a finite set of CSS keyframe animations,
  * mirroring the Codex-pet "row = state" model.
  *
- * Brand palette (INTERCEPT — navy ink + magenta accent + white):
- *   body navy    #1f1d3d  (block-navy / ink-navy — the body fill)
- *   deep navy    #15142a  (pupils / deepest shade — also the night canvas)
- *   indigo       #3a3566  (belly highlight, antenna stalk, waving hand)
- *   indigo line  #4a4576  (thin inner outline so the body reads on a card)
- *   magenta      #ff3d8b  (accent-magenta — rim edge, cheeks, antenna tip,
- *                          thinking dots, one celebrate sparkle)
+ * Brand palette (INTERCEPT — soft indigo body + magenta accent + white):
+ *   body indigo  #6b63c9  (soft periwinkle-indigo — the friendly body fill)
+ *   body light   #8a82de  (belly highlight / soft sheen — a lifted body tone)
+ *   body line    #5249a8  (thin inner outline so the body reads on a card)
+ *   deep ink     #15142a  (pupils / deepest shade — also the night canvas)
+ *   indigo       #4a4392  (antenna stalk, waving-hand stroke — deeper accent)
+ *   magenta      #ff3d8b  (accent ONLY — antenna tip + cheeks; plus the tiny
+ *                          thinking dots / one celebrate sparkle as micro-accents)
  *   white                 (face, eyes, mouth, gloss, eye sparkle, brows, hand)
  *
  * Reading on BOTH themes (the key recolor constraint):
- *   - LIGHT (white canvas #ffffff): the navy body reads with high contrast; the
- *     magenta rim frames it crisply so it never melts into a white card/button.
- *   - NIGHT (deep-navy canvas #15142a): the navy body matches INTERCEPT's own
- *     raised-tile contrast (#1f1d3d lifts off #15142a exactly as surface-soft
- *     does), and the magenta rim GLOWS to keep the silhouette legible on dark.
- *   The magenta edge is the one device that guarantees legibility on both grounds.
+ *   - LIGHT (white canvas #ffffff): the soft periwinkle-indigo body reads as a
+ *     friendly mid-tone against white, and a soft, subtle drop-shadow grounds it
+ *     so it never looks pasted flat — no harsh rim, just gentle depth.
+ *   - NIGHT (deep-navy canvas #15142a): the periwinkle body is several stops
+ *     lighter than the canvas, so the silhouette lifts off the dark on its own —
+ *     no neon rim needed. The same soft drop-shadow keeps it grounded.
+ *   The mid-tone body (not a dark navy) is what guarantees legibility on both
+ *   grounds; the rim glow is GONE in favor of a quiet drop-shadow.
  *
  * Accessibility:
  *   - The sprite is purely decorative → aria-hidden + role="img".
@@ -92,11 +95,12 @@ interface MascotProps {
 
 // Brand tokens kept local so the sprite is self-contained / portable.
 // (Acme hex → INTERCEPT hex mapping documented in WIRING.md.)
-const NAVY = "#1f1d3d"; // body fill — INTERCEPT block-navy / ink-navy
+const BODY = "#6b63c9"; // body fill — soft periwinkle-indigo (friendly on light + night)
+const BODY_LIGHT = "#8a82de"; // belly highlight · soft sheen (a lifted body tone)
+const BODY_LINE = "#5249a8"; // thin inner body outline (definition on a card)
 const NAVY_DEEP = "#15142a"; // pupils / deepest shade (also the night canvas)
-const INDIGO = "#3a3566"; // belly highlight · antenna stalk · waving hand
-const INDIGO_LINE = "#4a4576"; // thin inner body outline (definition on a card)
-const MAGENTA = "#ff3d8b"; // accent — rim · cheeks · antenna tip · dots · spark
+const INDIGO = "#4a4392"; // antenna stalk · waving hand stroke (deeper accent)
+const MAGENTA = "#ff3d8b"; // accent ONLY — antenna tip · cheeks (+ tiny dots · spark)
 const WHITE = "#ffffff"; // face · eyes · mouth · gloss · sparkle · brows · hand
 
 export function Mascot({ state = "idle", size = 40, className, gaze = null, glow = 0 }: MascotProps) {
@@ -158,37 +162,22 @@ export function Mascot({ state = "idle", size = 40, className, gaze = null, glow
           style={tracking ? { transform: `translateX(${leanX}px)` } : undefined}
         >
           <g className="mascot-body">
-            {/* magenta rim — the dual-theme legibility device: it frames the navy
-                body crisply on the white canvas and GLOWS so the silhouette stays
-                legible on the deep-navy night canvas. Also the brand's signature
-                navy×magenta pairing as a clean "sticker" edge. */}
-            <path
-              className="mascot-rim"
-              d="M50 13
-                 C73 13 85 30 85 52
-                 C85 75 70 87 50 87
-                 C30 87 15 75 15 52
-                 C15 30 27 13 50 13 Z"
-              fill="none"
-              stroke={MAGENTA}
-              strokeWidth="5"
-              strokeLinejoin="round"
-            />
-
-            {/* rounded blob body */}
+            {/* rounded blob body — soft periwinkle-indigo. No neon rim: a quiet
+                drop-shadow (see .mascot-body in <StyleTag/>) grounds it on light,
+                and the mid-tone fill lifts it off the night canvas on its own. */}
             <path
               d="M50 14
                  C72 14 84 30 84 52
                  C84 74 70 86 50 86
                  C30 86 16 74 16 52
                  C16 30 28 14 50 14 Z"
-              fill={NAVY}
-              stroke={INDIGO_LINE}
+              fill={BODY}
+              stroke={BODY_LINE}
               strokeWidth="2"
               strokeLinejoin="round"
             />
-            {/* indigo belly highlight for depth */}
-            <ellipse cx="50" cy="61" rx="26" ry="22" fill={INDIGO} opacity="0.55" />
+            {/* lighter belly highlight for soft, rounded depth */}
+            <ellipse cx="50" cy="61" rx="26" ry="22" fill={BODY_LIGHT} opacity="0.55" />
             {/* glossy top highlight — gives a lively, rounded sheen */}
             <ellipse className="mascot-gloss" cx="42" cy="30" rx="16" ry="9" fill={WHITE} opacity="0.16" />
 
@@ -287,6 +276,11 @@ function StyleTag() {
     <style>{`
 .mascot-sprite { display: inline-block; line-height: 0; }
 .mascot-svg { overflow: visible; display: block; }
+
+/* soft, subtle drop-shadow under the whole pet — replaces the old neon magenta
+   rim glow. Quiet depth that grounds the body on the light editorial canvas
+   without reading harsh, and stays gentle on the night canvas. */
+.mascot-body { filter: drop-shadow(0 2px 3px rgba(31, 29, 61, 0.22)); }
 
 /* smarter-glow halo behind the antenna tip — soft blur so it reads as a glow,
    not a flat disc. Pulses with the antenna while idle/thinking. */

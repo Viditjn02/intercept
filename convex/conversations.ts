@@ -296,6 +296,37 @@ export const setConversationIntent = internalMutation({
 });
 
 /**
+ * Insert a complete (non-streaming) assistant message for an EXTRA capability run
+ * fanned out from a compound prompt ("find competitors AND customers AND ads").
+ * The router (convex/chat.ts) creates one of these per additional capability and
+ * links a run to it, so each capability gets its own board on the canvas. Returns
+ * the new messageId so the caller can attach a run via api.runs.createRun.
+ */
+export const addRunMessage = internalMutation({
+  args: {
+    conversationId: v.id("conversations"),
+    content: v.string(),
+    intent: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    { conversationId, content, intent },
+  ): Promise<Id<"messages">> => {
+    const now = Date.now();
+    const messageId = await ctx.db.insert("messages", {
+      conversationId,
+      role: "assistant",
+      content,
+      isStreaming: false,
+      intent,
+      createdAt: now + 2,
+    });
+    await ctx.db.patch(conversationId, { lastMessageAt: now });
+    return messageId;
+  },
+});
+
+/**
  * Insert a proactive assistant message (the 24/7 cron summarizing what it found
  * overnight). Distinct from a streamed reply: it's complete on insert and tagged
  * `proactive` so the UI can badge it ("while you were away…").

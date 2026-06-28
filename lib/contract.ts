@@ -250,9 +250,9 @@ export const ROUTER_INTENTS: readonly RouterIntentSpec[] = [
     intent: "competitor",
     title: "Ad intelligence (scan)",
     description:
-      "Scan a competitor's live ads across Meta + TikTok with NO API token, rank by performance score + run-duration, show active status.",
-    examples: ["what ads is brex running", "scan superhuman's ads", "show me the top ads for competitor X"],
-    keywords: ["ads is", "ad library", "competitor", "running ads", "teardown", "what are they running", "winning ads", "meta ads", "what's working", "top ads", "tiktok ads", "scan ads"],
+      "Discover a company's REAL competitors, then scan THEIR live ads across Google + Meta + TikTok with NO API token, rank by performance score + run-duration, show active status. (A pre-revenue startup runs no ads of its own — its rivals do.)",
+    examples: ["what ads are nolongerjobless.com's competitors running", "scan superhuman's competitor ads", "show me the top ads in brex's category"],
+    keywords: ["ads is", "ad library", "competitor", "competitors", "rivals", "alternatives", "running ads", "teardown", "what are they running", "winning ads", "meta ads", "google ads", "what's working", "top ads", "tiktok ads", "scan ads"],
   },
   {
     intent: "content",
@@ -592,7 +592,10 @@ export const ONBOARDING_STEP_MAX = 7; // ceiling on generated tour steps
 // flows. adscout SCANS (→ `ads`), adsmith CREATES/REPLICATES (→ `adCreatives`).
 // These are the typed in-memory hand-offs; agents persist their own rows.
 // ----------------------------------------------------------------------------
-export type AdNetwork = "meta" | "tiktok";
+// Google = the token-free Ads Transparency Center lane (the PRIMARY network: it
+// needs zero keys — a plain server-side JSON-RPC fetch — and is the only one that
+// reliably returns a *named advertiser's* live creatives + first/last-shown dates).
+export type AdNetwork = "meta" | "tiktok" | "google";
 export type AdMediaType = "image" | "video" | "carousel" | "unknown";
 
 /** QuickAds-style 5-axis performance breakdown, 0-100 each. */
@@ -623,7 +626,7 @@ export interface ScannedAd {
   status: string; // "active" | "inactive"
   engagement?: { likes?: number; comments?: number; shares?: number };
   url: string;
-  source: string; // browser_meta | apify_meta | tiktok_radar | apify_tiktok | meta_api
+  source: string; // google_atc | browser_meta | apify_meta | tiktok_list | apify_tiktok | meta_api
   perfScore?: number;
   scores?: AdScores;
   scalingSignal?: boolean;

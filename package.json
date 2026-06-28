@@ -13,11 +13,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/provider-utils": "^4.0.33",
     "@convex-dev/agent": "^0.6.4",
     "@convex-dev/persistent-text-streaming": "^0.3.3",
     "@convex-dev/workpool": "^0.2.10",
     "@google/genai": "^1.9.0",
     "@onboardjs/core": "^1.0.0-rc.4",
+    "ai": "^6.0.214",
     "convex": "^1.17.0",
     "exa-js": "^1.5.13",
     "finderx": "^1.1.5",
@@ -26,6 +28,7 @@
     "orangeslice": "^2.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-force-graph-2d": "^1.27.1",
     "react-resizable-panels": "^2.1.9",
     "shepherd.js": "^15.2.2"
   },

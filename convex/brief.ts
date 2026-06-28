@@ -149,6 +149,22 @@ export const getCreative = query({
     const storageUrl = video.storageId
       ? await ctx.storage.getUrl(video.storageId)
       : null;
-    return { ...video, storageUrl };
+    // GRACEFUL-DEGRADE poster: when no video renders, CreativePanel shows the
+    // static gpt-image-1 ad image (from adsmith) instead of a red error. Best-
+    // effort — never throws; null just yields the calm "video preview · queued".
+    let posterUrl: string | null = null;
+    try {
+      const ads = await ctx.db
+        .query("adCreatives")
+        .withIndex("by_run", (q) => q.eq("runId", runId))
+        .collect();
+      const withImage = ads.find(
+        (a) => a.imageStatus === "done" && !!a.imageUrl,
+      );
+      posterUrl = withImage?.imageUrl ?? null;
+    } catch {
+      posterUrl = null;
+    }
+    return { ...video, storageUrl, posterUrl };
   },
 });

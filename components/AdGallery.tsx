@@ -238,9 +238,9 @@ export default function AdGallery({ runId, onFocusRun }: AdGalleryProps) {
           </div>
         ) : ads.length === 0 ? (
           <div className="grid place-items-center py-10 text-center">
-            <p className="text-body-sm text-ink/70">No live competitor ads surfaced.</p>
+            <p className="text-body-sm text-ink/70">No live competitor ads surfaced yet.</p>
             <p className="mt-1 max-w-sm text-body-sm text-ink/50">
-              Nothing came back for this advertiser on the scanned networks. The rest of the brief is unaffected.
+              We identified the real competitors and scanned their live ads across Google, Meta, and TikTok (token-free) — none are running right now. The rest of the brief is unaffected.
             </p>
           </div>
         ) : (

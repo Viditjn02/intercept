@@ -18,6 +18,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useCapture } from "./PostHogProvider";
+import NumberTicker from "./ui/NumberTicker";
 
 interface DraftRow {
   _id: string;
@@ -38,11 +39,10 @@ function MetricStat({ spec }: { spec: MetricSpec }) {
       <span className="caption text-ink/50">
         {spec.label}
       </span>
-      <span
-        className={`text-2xl font-fig-headline tabular-nums leading-none ${spec.accent}`}
-      >
-        {spec.value}
-      </span>
+      <NumberTicker
+        value={spec.value}
+        className={`text-2xl font-fig-headline leading-none ${spec.accent}`}
+      />
     </div>
   );
 }

@@ -84,6 +84,7 @@ export const save = internalMutation({
       v.literal("pending"),
       v.literal("rendering"),
       v.literal("done"),
+      v.literal("preview"), // calm graceful-degrade (no video) — never a red error
       v.literal("failed"),
     ),
     prompt: v.string(),
@@ -158,12 +159,14 @@ export const run = internalAction({
         durationSeconds: AD_DURATION_SECONDS,
       });
 
-      // lib/veo returns { url: undefined } (no throw) on poll-timeout / no video.
-      // Mark failed so the panel shows a clear state instead of an endless spinner.
+      // lib/veo returns { url: undefined } (no throw) on poll-timeout / no video
+      // (e.g. fal $0 balance + worker down). GRACEFUL DEGRADE: mark "preview" —
+      // the panel calmly shows the static gpt-image-1 ad image (from adsmith) or a
+      // "video preview · queued" card. NEVER a red "failed" — the brief stays green.
       if (!result.url) {
         await ctx.runMutation(internal.agents.creative.save, {
           runId,
-          status: "failed",
+          status: "preview",
           prompt,
           model: result.model ?? VEO_MODEL,
         });
@@ -171,7 +174,7 @@ export const run = internalAction({
           ctx,
           runId,
           "rendered",
-          "Video render unavailable on this key — the rest of the brief is unaffected.",
+          "Video preview queued — showing the static ad while the free render warms up.",
         );
         return;
       }
@@ -202,16 +205,22 @@ export const run = internalAction({
         "rendered",
         `Video ad ready (${result.model ?? VEO_MODEL}).`,
       );
-    } catch (error) {
-      // Render failed — record it and return cleanly. The fan-in still ships
-      // the brief; the creative is simply marked failed on the board.
+    } catch {
+      // Render threw — GRACEFUL DEGRADE to the calm "preview" state (never red).
+      // The fan-in still ships the brief; the panel falls back to the static
+      // gpt-image-1 ad image or a "video preview · queued" card.
       await ctx.runMutation(internal.agents.creative.save, {
         runId,
-        status: "failed",
+        status: "preview",
         prompt,
         model: VEO_MODEL,
       });
-      await logEvent(ctx, runId, "rendered", "Video render failed.");
+      await logEvent(
+        ctx,
+        runId,
+        "rendered",
+        "Video preview queued — the static ad is live; the rest of the brief is unaffected.",
+      );
     }
   },
 });

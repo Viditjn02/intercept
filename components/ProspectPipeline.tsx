@@ -8,6 +8,7 @@ import { prospectsByRunRef } from "./chatApi";
 import type { ProspectDoc } from "./types";
 import { STAGE_META, SIGNAL_META, fitColor, tintStyle } from "./pipelineMeta";
 import { hostFromUrl, initials } from "./format";
+import GlareCard from "./ui/GlareCard";
 
 // ============================================================================
 // ProspectPipeline — the outbound kanban. OrangeSlice firmographics + Fiber
@@ -115,7 +116,11 @@ function Column({ stage, items }: { stage: ProspectStage; items: ProspectDoc[] }
         {items.length === 0 ? (
           <p className="px-1 py-3 text-center text-[11px] text-ink/40">{meta.blurb}</p>
         ) : (
-          items.map((p) => <ProspectCard key={p._id} p={p} />)
+          items.map((p) => (
+            <GlareCard key={p._id} className="rounded-lg">
+              <ProspectCard p={p} />
+            </GlareCard>
+          ))
         )}
       </div>
     </div>

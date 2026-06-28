@@ -363,7 +363,11 @@ export default defineSchema({
       v.literal("pending"),
       v.literal("rendering"),
       v.literal("done"),
-      v.literal("failed"),
+      // "preview" = calm graceful-degrade: no video rendered (worker down + no
+      // Veo/fal balance), so the panel shows the static gpt-image-1 ad image or a
+      // "video preview · queued" card. NEVER a red error — the brief stays green.
+      v.literal("preview"),
+      v.literal("failed"), // legacy rows; the panel renders these calmly too
     ),
     model: v.string(),
     prompt: v.string(),

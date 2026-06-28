@@ -27,10 +27,12 @@ import type { ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { scanAds, enrichTopAds } from "../../lib/adscan";
+import { discoverCompetitors, type Competitor } from "../../lib/competitors";
 import {
   MAX_SCAN_ADS,
   SCALING_MIN_DAYS,
   SCAN_CACHE_TTL_MS,
+  type AdNetwork,
   type AdScores,
   type ScannedAd,
 } from "../../lib/contract";
@@ -165,83 +167,131 @@ export const run = internalAction({
     // Replay mode: ads are pre-seeded from a fixture; do no external work.
     if (runDoc.replay) return;
 
-    const advertiser = (runDoc.company ?? runDoc.input ?? "").trim();
-    if (!advertiser) return;
+    const target = (runDoc.company ?? runDoc.input ?? "").trim();
+    if (!target) return;
+    const domain = runDoc.routedDomain?.trim() || target;
 
     const country = "US";
-    const networks = ["meta", "tiktok"] as const;
-    const cacheKey = `${slugify(advertiser)}|${country}|${networks.join(",")}`;
+    // Google ATC is the PRIMARY token-free network (works with ZERO keys), with
+    // Meta + TikTok layered behind it.
+    const networks: AdNetwork[] = ["google", "meta", "tiktok"];
 
-    // 1) Scan (cache-first). Each lane in scanAds degrades to []; it never throws.
-    let scanned: ScannedAd[] = [];
-    let scanSource = "cache";
-    const cached = await ctx.runQuery(internal.agents.adscout.getCache, { key: cacheKey });
-    if (cached && Date.now() - cached.fetchedAt < SCAN_CACHE_TTL_MS) {
-      scanned = (cached.ads as ScannedAd[]) ?? [];
-      scanSource = cached.source || "cache";
-    } else {
-      try {
-        scanned = await scanAds(advertiser, { country, networks: [...networks] });
-      } catch {
-        scanned = [];
-      }
-      scanSource = scanned[0]?.source ?? "scan";
-      // Cache the raw (pre-score) scan, best-effort.
-      if (scanned.length > 0) {
-        try {
-          await ctx.runMutation(internal.agents.adscout.putCache, {
-            key: cacheKey,
-            ads: scanned,
-            source: scanSource,
-          });
-        } catch {
-          // cache is additive — ignore
-        }
-      }
-    }
+    // STEP A — discover REAL, advertising competitors of the target. The target
+    // itself (a pre-revenue startup) usually runs no ads; its rivals do. LLM
+    // primary (needs only the OpenAI key already required for scoring), Ocean
+    // grounding when keyed, deterministic seed fallback. Never empty, never throws.
+    const competitors = await discoverCompetitors(domain, { limit: 5 }).catch(
+      () => [] as Competitor[],
+    );
+    // Back-compat: if discovery somehow yields nothing, scan the target itself.
+    const toScan: Competitor[] =
+      competitors.length > 0 ? competitors : [{ name: target }];
+
+    // STEP B — scan each rival across all 3 networks (cache-first, per rival).
+    const perRival = await Promise.all(
+      toScan.map((c) =>
+        scanCached(ctx, c.name, country, networks).catch(() => [] as ScannedAd[]),
+      ),
+    );
+    const scanned: ScannedAd[] = perRival.flat();
+
+    const rivalNames = toScan.map((c) => c.name);
+    const rivalLabel =
+      rivalNames.length > 3
+        ? `${rivalNames.slice(0, 3).join(", ")} +${rivalNames.length - 3} more`
+        : rivalNames.join(", ");
 
     if (scanned.length === 0) {
       await logEvent(
         ctx,
         runId,
         "competitor",
-        `No live competitor ads surfaced for ${advertiser} (token-free Meta + TikTok scan came back empty — the rest of the brief is unaffected).`,
+        `Identified ${toScan.length} competitors of ${target} (${rivalLabel}) but no live ads surfaced across Google + Meta + TikTok (token-free) — the rest of the brief is unaffected.`,
       );
       return;
     }
 
-    // 2) Score each ad with OpenAI (degrades to longevity-only on no key/failure).
-    const scored = await scoreAds(advertiser, scanned);
+    // STEP C/D — score each ad with OpenAI (degrades to longevity-only on no
+    // key/failure), tagging the competitor each ad belongs to (via ad.advertiser).
+    const scored = await scoreAds(target, scanned);
 
-    // 3) Rank winning-first and cap to the gallery size, stamping rank.
+    // STEP E — rank winning-first, cap to the gallery size, stamp rank.
     const ranked = rankAds(scored)
       .slice(0, MAX_SCAN_ADS)
       .map((ad, i) => ({ ...ad, rank: i }));
 
-    // 4) Persist (map ScannedAd → the `ads` row shape).
+    // Persist (map ScannedAd → the `ads` row shape).
     await ctx.runMutation(internal.agents.adscout.save, {
       runId,
       ads: ranked.map(toAdRow),
     });
 
     const top = ranked[0];
+    const networksHit = Array.from(new Set(ranked.map((a) => a.network)))
+      .map((n) => (n === "google" ? "Google" : n === "meta" ? "Meta" : "TikTok"))
+      .join(" + ");
     const scoredCount = ranked.filter((a) => a.perfScore !== undefined).length;
     await logEvent(
       ctx,
       runId,
       "competitor",
-      `Scanned ${ranked.length} live ads for ${advertiser} across Meta + TikTok (no API token)` +
+      `Scanned ${ranked.length} live ads across ${networksHit || "Google + Meta + TikTok"} from ${
+        toScan.length
+      } competitors of ${target} (${rivalLabel}), token-free` +
         (scoredCount > 0 && top?.perfScore !== undefined
           ? `, scored by OpenAI (top: ${Math.round(top.perfScore)}/100${
               top.daysRunning !== undefined ? `, running ${top.daysRunning}d` : ""
-            }).`
+            } — ${top.advertiser}).`
           : `, ranked by longevity.`),
     );
 
-    // 5) Compounding: persist the winning angles to the brain for future runs.
-    await rememberAngles(ctx, advertiser, ranked);
+    // Compounding: persist the winning angles to the brain for future runs.
+    await rememberAngles(ctx, target, ranked);
   },
 });
+
+// ----------------------------------------------------------------------------
+// SCAN (cache-first) for a single advertiser. The no-token path is expensive, so
+// we cache the raw (pre-score) scan per advertiser|country|networks key for 6h.
+// Each lane in scanAds degrades to []; it never throws — so this never throws.
+// ----------------------------------------------------------------------------
+async function scanCached(
+  ctx: ActionCtx,
+  advertiser: string,
+  country: string,
+  networks: AdNetwork[],
+): Promise<ScannedAd[]> {
+  const name = advertiser.trim();
+  if (!name) return [];
+  const cacheKey = `${slugify(name)}|${country}|${[...networks].sort().join(",")}`;
+
+  const cached = await ctx
+    .runQuery(internal.agents.adscout.getCache, { key: cacheKey })
+    .catch(() => null);
+  if (cached && Date.now() - cached.fetchedAt < SCAN_CACHE_TTL_MS) {
+    return (cached.ads as ScannedAd[]) ?? [];
+  }
+
+  let scanned: ScannedAd[] = [];
+  try {
+    scanned = await scanAds(name, { country, networks });
+  } catch {
+    scanned = [];
+  }
+
+  if (scanned.length > 0) {
+    try {
+      await ctx.runMutation(internal.agents.adscout.putCache, {
+        key: cacheKey,
+        ads: scanned,
+        source: scanned[0]?.source ?? "scan",
+      });
+    } catch {
+      // cache is additive — ignore
+    }
+  }
+  return scanned;
+}
 
 // ----------------------------------------------------------------------------
 // SCORING — one batched OpenAI call returns per-ad 5-axis scores + winning

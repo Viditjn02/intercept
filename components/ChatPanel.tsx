@@ -13,6 +13,7 @@ import { useMutation, useQuery } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import ChatMessage from "./ChatMessage";
+import Spotlight from "./ui/Spotlight";
 import { getMessagesRef, sendMessageRef } from "./chatApi";
 import type { ChatMessageDoc } from "./types";
 
@@ -253,37 +254,42 @@ export default function ChatPanel({
 
 function Welcome({ onPick }: { onPick: (text: string) => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center py-10 text-center animate-fade-up">
-      <span className="flex h-12 w-12 items-center justify-center rounded-md bg-ink text-canvas">
-        <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
-          <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-          <path d="m20 20-4.6-4.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      </span>
-      <h1 className="mt-5 text-balance text-headline text-ink">
-        What should we go after?
-      </h1>
-      <p className="mt-2 max-w-md text-body-sm text-ink">
-        Paste a company, a competitor, or an idea. I&apos;ll decide what to do —
-        find live buyer threads, source decision-makers, draft outreach, scout
-        competitor ads, or make the creative — and work it live beside us.
-      </p>
-      <div className="mt-7 grid w-full max-w-md gap-2 sm:grid-cols-2">
-        {EXAMPLES.map((ex) => (
-          <button
-            key={ex.text}
-            type="button"
-            onClick={() => onPick(ex.text)}
-            className="group rounded-md border border-hairline bg-surface-soft p-3 text-left transition-colors hover:bg-canvas"
-          >
-            <span className="block text-body-sm font-fig-headline text-ink">
-              {ex.label}
-            </span>
-            <span className="mt-0.5 block truncate text-[12px] font-fig-body text-ink">
-              {ex.text}
-            </span>
-          </button>
-        ))}
+    <div className="relative flex flex-1 flex-col items-center justify-center py-10 text-center animate-fade-up">
+      {/* Subtle ambient spotlight behind the welcome — pure ambient light, on
+          our magenta/pastel tokens, sitting under the content (z-10). */}
+      <Spotlight />
+      <div className="relative z-10 flex w-full flex-col items-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-md bg-ink text-canvas">
+          <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
+            <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+            <path d="m20 20-4.6-4.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </span>
+        <h1 className="mt-5 text-balance text-headline text-ink">
+          What should we go after?
+        </h1>
+        <p className="mt-2 max-w-md text-body-sm text-ink">
+          Paste a company, a competitor, or an idea. I&apos;ll decide what to do —
+          find live buyer threads, source decision-makers, draft outreach, scout
+          competitor ads, or make the creative — and work it live beside us.
+        </p>
+        <div className="mt-7 grid w-full max-w-md gap-2 sm:grid-cols-2">
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex.text}
+              type="button"
+              onClick={() => onPick(ex.text)}
+              className="group rounded-md border border-hairline bg-surface-soft p-3 text-left transition-colors hover:bg-canvas"
+            >
+              <span className="block text-body-sm font-fig-headline text-ink">
+                {ex.label}
+              </span>
+              <span className="mt-0.5 block truncate text-[12px] font-fig-body text-ink">
+                {ex.text}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

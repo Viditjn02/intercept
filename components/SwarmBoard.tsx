@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement, type RefObject } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -12,6 +12,7 @@ import {
   type Capability,
 } from "@/lib/contract";
 import { cn } from "@/lib/utils";
+import { AnimatedBeam } from "@/components/ui/AnimatedBeam";
 
 // ============================================================================
 // SwarmBoard — the live agent grid for ONE run. Intent-aware: it renders only
@@ -302,12 +303,14 @@ function AgentTile({
   note,
   index,
   company,
+  innerRef,
 }: {
   agent: AgentId;
   status: AgentStatusValue;
   note?: string;
   index: number;
   company?: string;
+  innerRef?: RefObject<HTMLDivElement | null>;
 }) {
   const meta = AGENT_META[agent];
   const spec = AGENT_REGISTRY[agent];
@@ -344,8 +347,9 @@ function AgentTile({
 
   return (
     <div
+      ref={innerRef}
       className={cn(
-        "group relative flex flex-col gap-2.5 rounded-lg border bg-canvas p-3.5 transition-all duration-500 animate-fade-up",
+        "group relative z-10 flex flex-col gap-2.5 rounded-lg border bg-canvas p-3.5 transition-all duration-500 animate-fade-up",
         s.ring,
         fx === "flash" && "swarm-flash",
         fx === "shake" && "swarm-shake",
@@ -418,6 +422,18 @@ export default function SwarmBoard({
   const resolvedIntent = intent ?? run?.intent;
   const roster: AgentId[] = resolvedIntent ? boardAgentsForIntent(resolvedIntent) : [...AGENTS];
 
+  // Stable per-tile refs (one RefObject per roster slot) + the container the
+  // beam SVGs measure against. The array is rebuilt only when the roster length
+  // changes, so RefObject identity is preserved across status re-renders.
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const tileRefs = useRef<RefObject<HTMLDivElement | null>[]>([]);
+  if (tileRefs.current.length !== roster.length) {
+    tileRefs.current = Array.from(
+      { length: roster.length },
+      (_, i) => tileRefs.current[i] ?? { current: null },
+    );
+  }
+
   const byAgent = new Map<string, AgentStatusRow>();
   for (const row of statuses ?? []) byAgent.set(row.agent, row);
 
@@ -469,20 +485,49 @@ export default function SwarmBoard({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
-        {roster.map((agent, i) => {
-          const row = byAgent.get(agent);
-          return (
-            <AgentTile
-              key={agent}
-              agent={agent}
-              index={i}
-              status={(row?.status as AgentStatusValue) ?? "queued"}
-              note={row?.note}
-              company={run?.company}
-            />
-          );
-        })}
+      <div ref={containerRef} className="relative">
+        {/* Connection beams — flow between consecutive agents in pipeline order.
+            They sit BEHIND the tiles (the tiles are bg-canvas + z-10), so the
+            travelling magenta pulse is only seen threading through the gaps.
+            A beam pulses only while one of its two endpoints is running; at rest
+            it collapses to a calm ink hairline. */}
+        <div className="pointer-events-none absolute inset-0 z-0">
+          {roster.slice(0, -1).map((agent, i) => {
+            const next = roster[i + 1];
+            const a = (byAgent.get(agent)?.status as AgentStatusValue) ?? "queued";
+            const b = (byAgent.get(next)?.status as AgentStatusValue) ?? "queued";
+            const flowing = runStatus === "running" && (a === "running" || b === "running");
+            return (
+              <AnimatedBeam
+                key={`${agent}-${next}`}
+                containerRef={containerRef}
+                fromRef={tileRefs.current[i]}
+                toRef={tileRefs.current[i + 1]}
+                active={flowing}
+                reverse={i % 2 === 1}
+                duration={2.2 + (i % 3) * 0.35}
+                delay={(i % 3) * 0.4}
+              />
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+          {roster.map((agent, i) => {
+            const row = byAgent.get(agent);
+            return (
+              <AgentTile
+                key={agent}
+                agent={agent}
+                index={i}
+                innerRef={tileRefs.current[i]}
+                status={(row?.status as AgentStatusValue) ?? "queued"}
+                note={row?.note}
+                company={run?.company}
+              />
+            );
+          })}
+        </div>
       </div>
     </section>
   );

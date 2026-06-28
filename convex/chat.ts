@@ -334,6 +334,158 @@ function defaultAck(decision: RouterDecision): string {
 }
 
 // ----------------------------------------------------------------------------
+// COMPOUND-PROMPT FAN-OUT — "find competitors AND customers AND ads" must run ALL
+// the matching capabilities, not just the one the classifier picked. The bug was
+// that such a prompt routed to a single intent (the ad path) so Orange Slice +
+// Fiber (the "customers" outbound path) never fired. We detect every capability
+// the message asks for and spawn a SEPARATE run (each with its own board on the
+// canvas) for the extras beyond the primary. Purely additive: a single-intent
+// prompt has no conjunction → no extras → byte-identical to before.
+// ----------------------------------------------------------------------------
+
+/** Short board labels for the fan-out summary line. */
+const EXTRA_LABEL: Record<Capability, string> = {
+  analyze: "full sweep",
+  discovery: "buyer threads",
+  outbound: "customers + emails",
+  outreach: "outreach",
+  content: "ad creative",
+  competitor: "competitor ads",
+  replicate: "replica",
+  social: "viral posts",
+  onboarding: "onboarding flow",
+};
+
+/** A compound ask joins capabilities with a conjunction — only then do we fan out. */
+function hasConjunction(text: string): boolean {
+  return /\band\b|\balso\b|\bplus\b|\bthen\b|,|\+|&/.test(text);
+}
+
+const CREATE_VERB = /\b(make|generate|create|build|write|design|produce|spin up)\b/;
+
+/**
+ * Detect EVERY run-spawning capability a (possibly compound) message asks for.
+ * Maps the spec's terms: customers→outbound (Orange Slice + Fiber), competitors/
+ * ads(scan)→competitor (adscout), ads(create)/video→content (adsmith/creative),
+ * plus discovery/social/onboarding. Never throws.
+ */
+function detectCapabilities(userText: string): Set<Capability> {
+  const text = userText.toLowerCase();
+  const caps = new Set<Capability>();
+  const has = (re: RegExp) => re.test(text);
+
+  // customers → OUTBOUND (Orange Slice + Fiber MUST run).
+  if (
+    has(/\b(customers?|leads?|prospects?|buyers?)\b/) ||
+    has(/\bfind customers\b/) ||
+    has(/\bsell to\b/) ||
+    has(/\bdecision[- ]?makers?\b/) ||
+    has(/\boutbound\b/) ||
+    has(/\bemails? for\b/)
+  ) {
+    caps.add("outbound");
+  }
+
+  // competitors / their ads → COMPETITOR (adscout discovers rivals + scans ads).
+  const mentionsCompetitor = has(/\b(competitors?|rivals?|alternatives?)\b/);
+  if (mentionsCompetitor) caps.add("competitor");
+
+  const mentionsAds = has(/\bads?\b/) || has(/\bad creative\b/) || has(/\bcreative\b/);
+  if (mentionsAds) {
+    // "show/scan ads" = competitor scan.
+    caps.add("competitor");
+    // "make ads" = content; also when competitors are named separately (the scan
+    // is already covered, so "ads" reads as a deliverable = generate ads).
+    if (
+      has(CREATE_VERB) ||
+      mentionsCompetitor ||
+      has(/\b(ad creative|video ad|image ad|ad copy|similar ad)\b/)
+    ) {
+      caps.add("content");
+    }
+  }
+
+  // launch video / make a video → CONTENT.
+  if (has(/\bvideo\b/) && has(CREATE_VERB)) caps.add("content");
+
+  // the moat → DISCOVERY.
+  if (has(/\bthreads?\b|\bcommunit|\breddit\b|\bhacker news\b|\bconversations?\b/)) {
+    caps.add("discovery");
+  }
+
+  // virality → SOCIAL.
+  if (has(/\bviral\b|\btrend(ing|s)?\b|\breel\b|\bcontent calendar\b/)) caps.add("social");
+
+  // PLG → ONBOARDING.
+  if (has(/\bonboarding\b|\bproduct tour\b|\bwalkthrough\b|\bfirst[- ]run\b/)) {
+    caps.add("onboarding");
+  }
+
+  return caps;
+}
+
+/** Capabilities the `analyze` full-sweep board already covers (don't duplicate). */
+const ANALYZE_COVERS: ReadonlySet<Capability> = new Set<Capability>([
+  "discovery",
+  "competitor",
+  "content",
+]);
+
+/**
+ * Spawn a run for each EXTRA capability a compound prompt asks for (beyond the
+ * primary). Each gets its own assistant message so it renders its own board.
+ * Returns the spawned capabilities for the summary line. Never throws.
+ */
+async function fanOutExtras(
+  ctx: ActionCtx,
+  conversationId: Id<"conversations">,
+  decision: RouterDecision,
+  userText: string,
+): Promise<Capability[]> {
+  if (!hasConjunction(userText.toLowerCase())) return [];
+
+  const primary = decision.intent as Capability;
+  const covered = new Set<Capability>([primary]);
+  // Never auto-fan-out these explicit/destructive or redundant intents.
+  covered.add("outreach");
+  covered.add("replicate");
+  covered.add("analyze");
+  if (primary === "analyze") for (const c of ANALYZE_COVERS) covered.add(c);
+
+  const extras = [...detectCapabilities(userText)]
+    .filter((c) => !covered.has(c))
+    .slice(0, 3);
+  if (extras.length === 0) return [];
+
+  const subject = (decision.subject || userText).trim();
+  if (!subject) return [];
+
+  const spawned: Capability[] = [];
+  for (const cap of extras) {
+    try {
+      const subj = decision.subject ? ` for ${decision.subject}` : "";
+      const content = `On it — ${CAPABILITY_LABEL[cap]}${subj}. Watch this board.`;
+      const messageId: Id<"messages"> = await ctx.runMutation(
+        internal.conversations.addRunMessage,
+        { conversationId, content, intent: cap },
+      );
+      await ctx.runMutation(api.runs.createRun, {
+        intent: cap,
+        input: subject,
+        inputType: deriveInputType(cap, decision.subject ?? "", userText),
+        conversationId,
+        messageId,
+        trigger: "chat",
+      });
+      spawned.push(cap);
+    } catch {
+      // additive — a failed extra must never block the primary run/reply.
+    }
+  }
+  return spawned;
+}
+
+// ----------------------------------------------------------------------------
 // Streaming helpers — grow the assistant message, throttled.
 // ----------------------------------------------------------------------------
 
@@ -434,7 +586,17 @@ export const generate = internalAction({
           trigger: "chat",
           sourceUrl,
         });
-        finalText = `${ack}\n\n_The swarm is live on the canvas → watch it work._`;
+
+        // COMPOUND FAN-OUT: spawn a run per ADDITIONAL capability the message asks
+        // for ("…AND customers AND ads") so ALL relevant paths fire, each on its
+        // own board. Best-effort; never blocks the primary run.
+        const extras = await fanOutExtras(ctx, conversationId, decision, userText);
+        finalText =
+          extras.length > 0
+            ? `${ack}\n\n_The swarm is live on the canvas → watch it work. Also fanning out: ${extras
+                .map((c) => EXTRA_LABEL[c])
+                .join(", ")} — switch boards above the canvas._`
+            : `${ack}\n\n_The swarm is live on the canvas → watch it work._`;
       } catch {
         finalText = `${ack}\n\n_(I couldn't start that run just now — try again in a moment.)_`;
       }
