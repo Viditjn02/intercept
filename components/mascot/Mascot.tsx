@@ -82,6 +82,12 @@ interface MascotProps {
    * to the keyframe when null/zero (e.g. no cursor, reduced motion).
    */
   gaze?: MascotGaze | null;
+  /**
+   * Optional 0–1 "smarter" signal (the compounding brain's size). Brightens the
+   * antenna tip + adds a soft magenta halo so Acey visibly glows as it learns.
+   * 0/undefined → no extra glow (the default reactive look). Decorative only.
+   */
+  glow?: number;
 }
 
 // Brand tokens kept local so the sprite is self-contained / portable.
@@ -93,7 +99,9 @@ const INDIGO_LINE = "#4a4576"; // thin inner body outline (definition on a card)
 const MAGENTA = "#ff3d8b"; // accent — rim · cheeks · antenna tip · dots · spark
 const WHITE = "#ffffff"; // face · eyes · mouth · gloss · sparkle · brows · hand
 
-export function Mascot({ state = "idle", size = 40, className, gaze = null }: MascotProps) {
+export function Mascot({ state = "idle", size = 40, className, gaze = null, glow = 0 }: MascotProps) {
+  // Clamp the "smarter" glow once; drives the antenna halo opacity + tip radius.
+  const g = Math.max(0, Math.min(1, glow));
   // A live gaze (cursor nearby) takes over from the idle look-around keyframe.
   // Tiny threshold avoids flicker between keyframe and live tracking at rest.
   const tracking = !!gaze && (Math.abs(gaze.x) > 0.05 || Math.abs(gaze.y) > 0.05);
@@ -184,9 +192,21 @@ export function Mascot({ state = "idle", size = 40, className, gaze = null }: Ma
             {/* glossy top highlight — gives a lively, rounded sheen */}
             <ellipse className="mascot-gloss" cx="42" cy="30" rx="16" ry="9" fill={WHITE} opacity="0.16" />
 
-            {/* little antenna with a glowing magenta tip (pulses while thinking) */}
+            {/* little antenna with a glowing magenta tip (pulses while thinking).
+                A soft halo behind the tip brightens with the brain's size (`glow`)
+                so Acey visibly "gets smarter" — decorative, opacity-only. */}
             <line x1="50" y1="14" x2="50" y2="5" stroke={INDIGO} strokeWidth="3" strokeLinecap="round" />
-            <circle className="mascot-antenna" cx="50" cy="4" r="3.6" fill={MAGENTA} />
+            {g > 0.02 && (
+              <circle
+                className="mascot-antenna-halo"
+                cx="50"
+                cy="4"
+                r={6 + g * 4}
+                fill={MAGENTA}
+                opacity={0.12 + g * 0.33}
+              />
+            )}
+            <circle className="mascot-antenna" cx="50" cy="4" r={3.6 + g * 0.9} fill={MAGENTA} />
 
             {/* friendly cheeks (on-brand magenta) */}
             <circle cx="31" cy="59" r="4.5" fill={MAGENTA} opacity="0.5" />
@@ -267,6 +287,12 @@ function StyleTag() {
     <style>{`
 .mascot-sprite { display: inline-block; line-height: 0; }
 .mascot-svg { overflow: visible; display: block; }
+
+/* smarter-glow halo behind the antenna tip — soft blur so it reads as a glow,
+   not a flat disc. Pulses with the antenna while idle/thinking. */
+.mascot-antenna-halo { filter: blur(1.6px); transform-box: fill-box; transform-origin: center; }
+.mascot-sprite[data-mascot-state="idle"] .mascot-antenna-halo { animation: mascot-antenna-pulse 4s ease-in-out infinite; }
+.mascot-sprite[data-mascot-state="thinking"] .mascot-antenna-halo { animation: mascot-antenna-pulse 1.1s ease-in-out infinite; }
 
 /* hidden-by-default sub-parts */
 .mascot-arm { opacity: 0; }

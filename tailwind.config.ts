@@ -120,6 +120,31 @@ const config: Config = {
       boxShadow: {
         soft: "0 4px 16px rgba(0,0,0,0.06)", // Elevation 2 — floating tiles, dropdowns, tooltips
         modal: "0 24px 64px rgba(0,0,0,0.30)", // Elevation 3 — lightbox / modal (pair with bg-scrim/60)
+        // Glass elevation shadows (mirror the --glass-shadow-* vars for utility use).
+        "glass-1": "0 4px 16px rgb(0 0 0 / 0.07)",
+        "glass-2": "0 8px 32px rgb(0 0 0 / 0.10)",
+      },
+
+      // Glass tier blur radii (mirror --glass-N-blur). Use `backdrop-blur-glass-N`
+      // ONLY paired with backdrop-saturate-glass; prefer the .glass-1/2/3 classes.
+      backdropBlur: {
+        "glass-1": "12px",
+        "glass-2": "16px",
+        "glass-3": "20px",
+      },
+
+      // Motion durations (mirror --dur-*). For transform/opacity transitions only.
+      transitionDuration: {
+        instant: "100ms",
+        quick: "200ms",
+        standard: "280ms",
+        enter: "400ms",
+      },
+
+      // Shared easings (mirror --ease-spring / --ease-out).
+      transitionTimingFunction: {
+        spring: "cubic-bezier(0.22, 1, 0.36, 1)",
+        "ease-out-soft": "cubic-bezier(0, 0, 0.2, 1)",
       },
     },
   },

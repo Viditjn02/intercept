@@ -64,6 +64,32 @@
     --space-xl: 32px;
     --space-xxl: 48px;
     --space-section: 96px;
+
+    /* ── GLASS elevation (chrome you look THROUGH — never on read-content) ─────
+       Channels are space-separated RGB so rgb(var(--x) / var(--alpha)) composes.
+       Tier 1 raised chrome · Tier 2 floating overlay · Tier 3 ephemeral.        */
+    --glass-1-bg: 255 255 255;
+    --glass-1-alpha: 0.72;
+    --glass-1-blur: 12px;
+    --glass-2-bg: 255 255 255;
+    --glass-2-alpha: 0.64;
+    --glass-2-blur: 16px;
+    --glass-3-bg: 255 255 255;
+    --glass-3-alpha: 0.88;
+    --glass-3-blur: 20px;
+    --glass-saturate: 150%;
+    --glass-border-alpha: 0.18;
+    --glass-shadow-1: 0 4px 16px rgb(0 0 0 / 0.07);
+    --glass-shadow-2: 0 8px 32px rgb(0 0 0 / 0.1);
+
+    /* ── MOTION system (durations + shared easings) ───────────────────────────
+       Pair with transform/opacity only — NEVER animate backdrop-filter.         */
+    --dur-instant: 100ms;
+    --dur-quick: 200ms;
+    --dur-standard: 280ms;
+    --dur-enter: 400ms;
+    --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
   }
 
   /* ── NIGHT: derived from block-navy #1f1d3d + inverse-canvas/inverse-ink ──── */
@@ -90,7 +116,18 @@
        Only block-navy is nudged lighter so a navy SECTION still lifts off canvas. */
     --block-navy: 42 39 71; /* #2a2747 */
 
-    /* accent / semantic unchanged */
+    /* glass goes navy-derived; borders drop to a fainter hairline on dark */
+    --glass-1-bg: 21 20 42; /* #15142a */
+    --glass-1-alpha: 0.78;
+    --glass-2-bg: 31 29 61; /* #1f1d3d */
+    --glass-2-alpha: 0.72;
+    --glass-3-bg: 31 29 61; /* #1f1d3d */
+    --glass-3-alpha: 0.82;
+    --glass-border-alpha: 0.1;
+    --glass-shadow-1: 0 4px 16px rgb(0 0 0 / 0.3);
+    --glass-shadow-2: 0 8px 32px rgb(0 0 0 / 0.4);
+
+    /* accent / semantic + motion unchanged */
   }
 
   /* base elements ----------------------------------------------------------- */
@@ -204,6 +241,66 @@
   .text-input:focus-within {
     outline: none;
     box-shadow: 0 0 0 2px rgb(var(--ink) / 0.18);
+  }
+
+  /* ── GLASS surfaces — CHROME ONLY (sidebar, panel headers, composer pill,
+     modals, ⌘K). NEVER on read-content (kanban cards, chat bubbles, tables).
+     Each tier = translucent bg + blur + saturate + 1px hairline + shadow.
+     `saturate` avoids grey mud; the 1px border keeps the edge visible to
+     low-vision users. Do NOT transition backdrop-filter — animate transform
+     / opacity on the element instead.                                          */
+  .glass-1 {
+    background: rgb(var(--glass-1-bg) / var(--glass-1-alpha));
+    -webkit-backdrop-filter: blur(var(--glass-1-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-1-blur)) saturate(var(--glass-saturate));
+    border: 1px solid rgb(var(--ink) / var(--glass-border-alpha));
+    box-shadow: var(--glass-shadow-1);
+  }
+  .glass-2 {
+    background: rgb(var(--glass-2-bg) / var(--glass-2-alpha));
+    -webkit-backdrop-filter: blur(var(--glass-2-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-2-blur)) saturate(var(--glass-saturate));
+    border: 1px solid rgb(var(--ink) / var(--glass-border-alpha));
+    box-shadow: var(--glass-shadow-2);
+  }
+  .glass-3 {
+    background: rgb(var(--glass-3-bg) / var(--glass-3-alpha));
+    -webkit-backdrop-filter: blur(var(--glass-3-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-3-blur)) saturate(var(--glass-saturate));
+    border: 1px solid rgb(var(--ink) / var(--glass-border-alpha));
+    box-shadow: var(--glass-shadow-2);
+  }
+
+  /* Accessibility / fallback: when transparency is reduced (OS setting) OR the
+     browser lacks backdrop-filter, glass becomes a solid opaque surface so text
+     over it never loses contrast. Border + shadow are retained for elevation.  */
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-1,
+    .glass-2,
+    .glass-3 {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+    .glass-1 {
+      background: rgb(var(--glass-1-bg));
+    }
+    .glass-2 {
+      background: rgb(var(--glass-2-bg));
+    }
+    .glass-3 {
+      background: rgb(var(--glass-3-bg));
+    }
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-1 {
+      background: rgb(var(--glass-1-bg));
+    }
+    .glass-2 {
+      background: rgb(var(--glass-2-bg));
+    }
+    .glass-3 {
+      background: rgb(var(--glass-3-bg));
+    }
   }
 }
 

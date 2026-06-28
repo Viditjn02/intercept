@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
-import { OutreachButton } from "@/components/OutreachButton";
+import IntentPreviewCard from "@/components/IntentPreviewCard";
 
 // ============================================================================
 // ApprovalModal — the human-in-the-loop gate.
@@ -151,6 +151,24 @@ export default function ApprovalModal({ draft, thread, onClose }: ApprovalModalP
               {error}
             </p>
           )}
+
+          {/* Pre-send intent gate — the LAST confirmation before this reply leaves
+              via AgentMail. Surfaces only once the human has approved; Edit backs
+              out to the thread, Skip discards, Send Now commits the real send. */}
+          {draft.status === "approved" && (
+            <div className="mt-4">
+              <IntentPreviewCard
+                draftId={draft._id}
+                channel="AgentMail"
+                title={thread?.title ?? "In-thread reply"}
+                to={thread?.title ? `the “${thread.title}” thread` : undefined}
+                body={draft.body}
+                onEdit={onClose}
+                onSkip={() => void act("rejected")}
+                skipping={pending === "rejected"}
+              />
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -158,12 +176,10 @@ export default function ApprovalModal({ draft, thread, onClose }: ApprovalModalP
           <div className="mr-auto flex items-center gap-3">
             {decided ? (
               <span className="text-sm text-ink/60">
-                Already {draft.status.replace("_", " ")}.
+                {/* The approved send is gated by the IntentPreviewCard above. */}
+                {draft.status === "approved" ? "Approved — confirm the send above." : `Already ${draft.status.replace("_", " ")}.`}
               </span>
             ) : null}
-            {/* Send the human-approved reply via AgentMail. Self-gates: stays
-                disabled until the draft is approved, no-ops if unconfigured. */}
-            <OutreachButton draftId={draft._id} />
           </div>
           <button
             type="button"

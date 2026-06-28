@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -207,6 +207,61 @@ const AGENT_META: Record<AgentId, { tagline: string; icon: ReactElement }> = {
   },
 };
 
+// ----------------------------------------------------------------------------
+// SPECIFIC running status text — never a bare spinner. The live backend `note`
+// (the agent's own truth) always wins; this is the grounded fallback so a tile
+// reads "Scanning live ads for Acme…" instead of an anonymous spinning ring.
+// {co} interpolates the run's company.
+// ----------------------------------------------------------------------------
+const RUNNING_LABEL: Record<AgentId, string> = {
+  router: "Reading the input, dispatching the swarm…",
+  enrich: "Building the ICP & positioning for {co}…",
+  detective: "Hunting live buyer threads for {co}…",
+  reply: "Drafting in-thread replies…",
+  sourcer: "Sourcing companies + verified contacts…",
+  qualifier: "Scoring fit 0–100, dropping the misses…",
+  writer: "Writing signal-grounded outbound emails…",
+  sender: "Sending the approved sequence via AgentMail…",
+  follower: "Watching replies, scheduling follow-ups…",
+  adscout: "Scanning live ads for {co}…",
+  creative: "Rendering the video ad…",
+  adsmith: "Generating image + copy + 3 variations…",
+  watcher: "Tearing down competitor video ads…",
+  trendscout: "Scanning live trends for {co}…",
+  composer: "Spinning up multi-variant viral posts…",
+  reelmaker: "Rendering a short vertical reel…",
+  calendar: "Laying out the content calendar…",
+  twin: "Simulating the buyer's reply before send…",
+  guide: "Generating the in-app onboarding flow…",
+};
+
+function runningLabel(agent: AgentId, company?: string): string {
+  const co = (company ?? "").trim() || "the target";
+  return RUNNING_LABEL[agent].replace(/\{co\}/g, co);
+}
+
+// One-shot micro-state keyframes (done = success border flash, failed = shake).
+// Injected once, dependency-free, and gated behind prefers-reduced-motion so the
+// solid border/icon still communicate the state when motion is reduced. Kept out
+// of globals.css on purpose — this file owns the swarm's status choreography.
+const FX_STYLE_ID = "swarmboard-fx";
+const FX_CSS = `
+@keyframes swarm-shake{0%,100%{transform:translateX(0)}15%{transform:translateX(-4px)}30%{transform:translateX(4px)}45%{transform:translateX(-3px)}60%{transform:translateX(3px)}75%{transform:translateX(-2px)}}
+@keyframes swarm-flash{0%{box-shadow:0 0 0 0 rgb(var(--success) / .5)}100%{box-shadow:0 0 0 7px rgb(var(--success) / 0)}}
+@media (prefers-reduced-motion: no-preference){
+.swarm-shake{animation:swarm-shake .42s ease-in-out both}
+.swarm-flash{animation:swarm-flash .7s cubic-bezier(0,0,.2,1) both}
+}`;
+
+function ensureFxStyles(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(FX_STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = FX_STYLE_ID;
+  el.textContent = FX_CSS;
+  document.head.appendChild(el);
+}
+
 const STATUS_STYLE: Record<
   AgentStatusValue,
   { ring: string; chip: string; label: string; text: string }
@@ -219,8 +274,7 @@ const STATUS_STYLE: Record<
 };
 
 function StatusIcon({ status }: { status: AgentStatusValue }) {
-  if (status === "running")
-    return <span className="h-3.5 w-3.5 animate-spin-slow rounded-full border-2 border-canvas/40 border-t-canvas" />;
+  if (status === "running") return <span className="live-dot" />;
   if (status === "done")
     return (
       <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 text-success">
@@ -247,24 +301,57 @@ function AgentTile({
   status,
   note,
   index,
+  company,
 }: {
   agent: AgentId;
   status: AgentStatusValue;
   note?: string;
   index: number;
+  company?: string;
 }) {
   const meta = AGENT_META[agent];
   const spec = AGENT_REGISTRY[agent];
   const s = STATUS_STYLE[status];
   const isRunning = status === "running";
 
+  // Micro-states on transition: queued→running pops (scale-in), →done flashes a
+  // success border, →failed shakes. One-shot, self-clearing; the steady-state
+  // styling (border/icon/track) carries the status after the animation settles.
+  const prev = useRef<AgentStatusValue>(status);
+  const [fx, setFx] = useState<"pop" | "flash" | "shake" | null>(null);
+  useEffect(() => {
+    if (prev.current === status) return;
+    const was = prev.current;
+    prev.current = status;
+    if (was !== "done" && status === "done") {
+      setFx("flash");
+      const t = setTimeout(() => setFx(null), 760);
+      return () => clearTimeout(t);
+    }
+    if (was !== "failed" && status === "failed") {
+      setFx("shake");
+      const t = setTimeout(() => setFx(null), 480);
+      return () => clearTimeout(t);
+    }
+    if (was === "queued" && status === "running") {
+      setFx("pop");
+      const t = setTimeout(() => setFx(null), 320);
+      return () => clearTimeout(t);
+    }
+  }, [status]);
+
+  const statusLine = note ?? (isRunning ? runningLabel(agent, company) : meta.tagline);
+
   return (
     <div
       className={cn(
         "group relative flex flex-col gap-2.5 rounded-lg border bg-canvas p-3.5 transition-all duration-500 animate-fade-up",
         s.ring,
+        fx === "flash" && "swarm-flash",
+        fx === "shake" && "swarm-shake",
+        fx === "pop" && "animate-scale-in",
       )}
-      style={{ animationDelay: `${index * 60}ms` }}
+      style={{ animationDelay: fx ? undefined : `${index * 60}ms` }}
     >
       {isRunning && <span className="pointer-events-none absolute inset-0 rounded-lg animate-pulse-ring" />}
       <div className="flex items-center justify-between">
@@ -287,7 +374,7 @@ function AgentTile({
       </div>
       <div>
         <h3 className={cn("text-[13.5px] font-fig-card leading-tight", s.text)}>{spec.label}</h3>
-        <p className="mt-0.5 line-clamp-2 text-[11.5px] font-fig-body leading-snug text-ink">{note ?? meta.tagline}</p>
+        <p className="mt-0.5 line-clamp-2 text-[11.5px] font-fig-body leading-snug text-ink">{statusLine}</p>
       </div>
       <div className="mt-auto h-0.5 w-full overflow-hidden rounded-full bg-surface-soft">
         {isRunning ? (
@@ -321,6 +408,11 @@ export default function SwarmBoard({
 }) {
   const run = useQuery(api.runs.getRun, { runId }) as RunDoc | null | undefined;
   const statuses = useQuery(api.runs.agentStatuses, { runId }) as AgentStatusRow[] | undefined;
+
+  // Register the one-shot micro-state keyframes (done flash / failed shake) once.
+  useEffect(() => {
+    ensureFxStyles();
+  }, []);
 
   // The roster: prefer the prop, else the run's intent, else the full list.
   const resolvedIntent = intent ?? run?.intent;
@@ -387,6 +479,7 @@ export default function SwarmBoard({
               index={i}
               status={(row?.status as AgentStatusValue) ?? "queued"}
               note={row?.note}
+              company={run?.company}
             />
           );
         })}

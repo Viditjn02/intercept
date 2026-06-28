@@ -1,6 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -10,6 +18,7 @@ import {
   type Capability,
 } from "@/lib/contract";
 import { cn } from "@/lib/utils";
+import CanvasGhost from "./CanvasGhost";
 import SwarmBoard from "./SwarmBoard";
 import DiscoveryBoard from "./DiscoveryBoard";
 import ProspectPipeline from "./ProspectPipeline";
@@ -69,6 +78,38 @@ function capabilityTitle(intent: Capability): string {
   return ROUTER_INTENTS.find((r) => r.intent === intent)?.title ?? intent;
 }
 
+// Mode identity: a short, scannable name + the board noun it renders + the
+// pastel breadcrumb colour. Echoes the "Pipeline · Kanban" wayfinding pattern.
+const MODE_META: Record<Capability, { label: string; board: string; dot: string }> = {
+  analyze: { label: "Full Sweep", board: "Overview", dot: "bg-block-lime" },
+  discovery: { label: "Discovery", board: "Threads", dot: "bg-block-mint" },
+  outbound: { label: "Outbound", board: "Pipeline", dot: "bg-block-lilac" },
+  outreach: { label: "Outreach", board: "Pipeline", dot: "bg-block-coral" },
+  competitor: { label: "Ad Intel", board: "Gallery", dot: "bg-block-pink" },
+  content: { label: "Ad Factory", board: "Studio", dot: "bg-block-cream" },
+  replicate: { label: "Replicate", board: "Studio", dot: "bg-block-cream" },
+  social: { label: "Social", board: "Calendar", dot: "bg-block-navy" },
+  onboarding: { label: "Onboarding", board: "Tour", dot: "bg-block-lilac" },
+};
+
+function modeMeta(intent: Capability) {
+  return MODE_META[intent] ?? MODE_META.analyze;
+}
+
+// Honour the user's motion preference so the morph never fights accessibility.
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(mq.matches);
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
+  return reduced;
+}
+
 export default function CanvasPanel({
   conversationId,
   focusedRunId,
@@ -101,54 +142,145 @@ export default function CanvasPanel({
   const activeRun =
     runs.find((r) => r.runId === focusedRunId) ?? runs[runs.length - 1] ?? null;
 
+  const reducedMotion = usePrefersReducedMotion();
+
+  // MORPH, don't swap. Wrap any mode change in the View Transitions API so the
+  // outgoing board fades while the incoming one scales in. Always feature-detect
+  // and never throw — a failed transition must still complete the state change.
+  const morph = useCallback(
+    (apply: () => void) => {
+      const start =
+        !reducedMotion &&
+        typeof document !== "undefined" &&
+        typeof (document as Document & {
+          startViewTransition?: (cb: () => void) => unknown;
+        }).startViewTransition === "function"
+          ? (document as Document & {
+              startViewTransition: (cb: () => void) => unknown;
+            }).startViewTransition.bind(document)
+          : null;
+      if (!start) {
+        apply();
+        return;
+      }
+      try {
+        start(() => flushSync(apply));
+      } catch {
+        apply();
+      }
+    },
+    [reducedMotion],
+  );
+
+  const morphView = useCallback(
+    (next: CanvasView) => morph(() => setView(next)),
+    [morph, setView],
+  );
+
+  const morphFocus = useMemo(
+    () =>
+      onFocusRun
+        ? (runId: Id<"runs"> | undefined, intent?: string) =>
+            morph(() => onFocusRun(runId, intent))
+        : undefined,
+    [morph, onFocusRun],
+  );
+
+  // Restore scroll position when the user returns to a previously-seen board —
+  // what makes the morph feel "smart" instead of stateless. Keyed by morphKey,
+  // and held in a ref so it survives the keyed remount of the board container.
+  const scrollMem = useRef<Map<string, number>>(new Map());
+
+  // One key per distinct board view. Changing it remounts the board container,
+  // which is what triggers the incoming scale-in (and gives us a restore point).
+  const morphKey =
+    view === "brain"
+      ? "brain"
+      : activeRun
+        ? `run:${activeRun.runId}`
+        : "empty";
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <CanvasLens view={view} onView={setView} />
+      <CanvasHeader
+        view={view}
+        onView={morphView}
+        runs={runs}
+        activeRun={activeRun}
+        onFocusRun={morphFocus}
+      />
       <div className="min-h-0 flex-1">
-        {view === "brain" ? (
-          // The brain board comes online the moment its Convex functions deploy;
-          // until then PanelBoundary shows a calm fallback instead of crashing.
-          <PanelBoundary label="Waking the brain…">
-            <BrainCanvas />
-          </PanelBoundary>
-        ) : activeRun ? (
-          <CanvasForRun
-            run={activeRun}
-            runs={runs}
-            focusedRunId={focusedRunId ?? null}
-            onFocusRun={onFocusRun}
-          />
-        ) : (
-          <CanvasEmpty hasConversation={!!conversationId} />
-        )}
+        <div
+          key={morphKey}
+          className={cn("h-full min-h-0", !reducedMotion && "animate-scale-in")}
+        >
+          {view === "brain" ? (
+            // The brain board comes online the moment its Convex functions deploy;
+            // until then PanelBoundary shows a calm fallback instead of crashing.
+            <PanelBoundary label="Waking the brain…">
+              <BrainCanvas />
+            </PanelBoundary>
+          ) : activeRun ? (
+            <CanvasForRun
+              run={activeRun}
+              runs={runs}
+              focusedRunId={focusedRunId ?? null}
+              onFocusRun={morphFocus}
+              scrollMem={scrollMem}
+              scrollKey={morphKey}
+            />
+          ) : (
+            <CanvasGhost
+              hasConversation={!!conversationId}
+              reducedMotion={reducedMotion}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // ----------------------------------------------------------------------------
-// CanvasLens — the Run | Brain toggle. Run = the live work surface for the
-// active run; Brain = the compounding knowledge board (global, always available
-// — even before any run exists).
+// CanvasHeader — Tier-1 glass chrome bar. Carries the persistent MODE IDENTITY
+// PILL (top-left, "you are here" + chevron quick-switcher), a faded ⌘K hint, and
+// the Run | Brain lens toggle. Glass goes here (chrome you look through) — never
+// on the boards below (content you read).
 // ----------------------------------------------------------------------------
-function CanvasLens({
+function CanvasHeader({
   view,
   onView,
+  runs,
+  activeRun,
+  onFocusRun,
 }: {
   view: CanvasView;
   onView: (view: CanvasView) => void;
+  runs: RunRef[];
+  activeRun: RunRef | null;
+  onFocusRun?: (runId: Id<"runs"> | undefined, intent?: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-end border-b border-hairline px-5 py-2">
-      <div className="inline-flex rounded-pill border border-hairline bg-canvas p-0.5 text-[11px] font-fig-link">
-        <LensTab active={view === "run"} onClick={() => onView("run")}>
-          Run
-        </LensTab>
-        <LensTab active={view === "brain"} onClick={() => onView("brain")}>
-          Brain
-        </LensTab>
+    <header className="glass-1 relative z-10 flex items-center justify-between gap-3 px-4 py-2">
+      <ModeIdentityPill
+        view={view}
+        onView={onView}
+        runs={runs}
+        activeRun={activeRun}
+        onFocusRun={onFocusRun}
+      />
+      <div className="flex items-center gap-2">
+        <CmdKHint />
+        <div className="inline-flex rounded-pill border border-hairline bg-canvas/70 p-0.5 text-[11px] font-fig-link">
+          <LensTab active={view === "run"} onClick={() => onView("run")}>
+            Run
+          </LensTab>
+          <LensTab active={view === "brain"} onClick={() => onView("brain")}>
+            Brain
+          </LensTab>
+        </div>
       </div>
-    </div>
+    </header>
   );
 }
 
@@ -174,24 +306,257 @@ function LensTab({
   );
 }
 
+// ----------------------------------------------------------------------------
+// ModeIdentityPill — the persistent "Pipeline · Kanban ⌄" wayfinder. Answers
+// "what mode am I in?" at a glance and doubles as a quick-switcher across every
+// run in the conversation plus the Brain lens. A live-dot rides the pill while
+// the active run's swarm is still running.
+// ----------------------------------------------------------------------------
+function ModeIdentityPill({
+  view,
+  onView,
+  runs,
+  activeRun,
+  onFocusRun,
+}: {
+  view: CanvasView;
+  onView: (view: CanvasView) => void;
+  runs: RunRef[];
+  activeRun: RunRef | null;
+  onFocusRun?: (runId: Id<"runs"> | undefined, intent?: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside-click / Escape — standard popover hygiene.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const inRun = view === "run" && !!activeRun;
+  const meta = inRun ? modeMeta(activeRun!.intent) : null;
+  const label = inRun ? meta!.label : "Brain";
+  const board = inRun ? meta!.board : "Knowledge";
+  const dot = inRun ? meta!.dot : "bg-block-navy";
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-canvas/70 px-3 py-1.5 text-[12px] font-fig-link text-ink transition-colors hover:bg-surface-soft"
+      >
+        {inRun ? (
+          <LiveDot runId={activeRun!.runId} dot={dot} />
+        ) : (
+          <span className={cn("h-2.5 w-2.5 rounded-full ring-2 ring-canvas", dot)} />
+        )}
+        <span className="text-ink">{label}</span>
+        <span className="text-ink/35">·</span>
+        <span className="text-ink/60">{board}</span>
+        <svg
+          viewBox="0 0 16 16"
+          className={cn(
+            "h-3.5 w-3.5 text-ink/45 transition-transform",
+            open && "rotate-180",
+          )}
+        >
+          <path
+            d="M4 6l4 4 4-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="glass-2 absolute left-0 top-[calc(100%+6px)] z-20 w-60 animate-scale-in overflow-hidden rounded-lg p-1"
+        >
+          <p className="px-2.5 pb-1 pt-1.5 text-[10px] uppercase tracking-wide text-ink/45">
+            Switch board
+          </p>
+          {runs.length === 0 && (
+            <p className="px-2.5 py-2 text-[11.5px] leading-snug text-ink/55">
+              No runs yet — message the chat to spin one up.
+            </p>
+          )}
+          {runs
+            .slice()
+            .reverse()
+            .map((r) => {
+              const m = modeMeta(r.intent);
+              const active = view === "run" && activeRun?.runId === r.runId;
+              return (
+                <button
+                  key={r.runId}
+                  role="menuitem"
+                  onClick={() => {
+                    if (view !== "run") onView("run");
+                    onFocusRun?.(r.runId, r.intent);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] transition-colors",
+                    active ? "bg-surface-soft" : "hover:bg-surface-soft/70",
+                  )}
+                >
+                  <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", m.dot)} />
+                  <span className="truncate text-ink">{m.label}</span>
+                  <span className="ml-auto shrink-0 text-[10.5px] text-ink/45">
+                    {m.board}
+                  </span>
+                </button>
+              );
+            })}
+          <div className="my-1 h-px bg-hairline" />
+          <button
+            role="menuitem"
+            onClick={() => {
+              onView("brain");
+              setOpen(false);
+            }}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] transition-colors",
+              view === "brain" ? "bg-surface-soft" : "hover:bg-surface-soft/70",
+            )}
+          >
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-block-navy" />
+            <span className="truncate text-ink">Brain</span>
+            <span className="ml-auto shrink-0 text-[10.5px] text-ink/45">
+              Knowledge
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// LiveDot — pulses while the run is still working; settles to a calm breadcrumb
+// once it completes. Read-only query; never affects run behaviour.
+function LiveDot({ runId, dot }: { runId: Id<"runs">; dot: string }) {
+  const run = useQuery(api.runs.getRun, { runId });
+  const live = run?.status === "running";
+  return (
+    <span className="relative flex h-2.5 w-2.5">
+      {live && (
+        <span
+          className={cn(
+            "absolute inline-flex h-full w-full animate-ping rounded-full opacity-70",
+            dot,
+          )}
+        />
+      )}
+      <span className={cn("relative inline-flex h-2.5 w-2.5 rounded-full ring-2 ring-canvas", dot)} />
+    </span>
+  );
+}
+
+// CmdKHint — a faded ⌘K affordance that retires after first use (persisted).
+// It does NOT own the palette; it just dispatches an open-intent the palette
+// layer can listen for, and fades once the user discovers the shortcut.
+const CMDK_SEEN_KEY = "intercept:cmdk-seen";
+
+function CmdKHint() {
+  const [seen, setSeen] = useState(true);
+
+  useEffect(() => {
+    let dismissed = true;
+    try {
+      dismissed = window.localStorage.getItem(CMDK_SEEN_KEY) === "1";
+    } catch {
+      /* private mode — just keep it hidden */
+    }
+    setSeen(dismissed);
+
+    if (dismissed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") dismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const dismiss = () => {
+    setSeen(true);
+    try {
+      window.localStorage.setItem(CMDK_SEEN_KEY, "1");
+      window.dispatchEvent(new CustomEvent("intercept:open-command-palette"));
+    } catch {
+      /* never break the header */
+    }
+  };
+
+  if (seen) return null;
+
+  return (
+    <button
+      onClick={dismiss}
+      title="Command palette"
+      className="hidden items-center gap-1 rounded-pill border border-hairline bg-canvas/60 px-2 py-1 text-[10.5px] text-ink/50 transition-colors hover:text-ink sm:inline-flex"
+    >
+      <kbd className="font-fig-mono text-[10px] text-ink/60">⌘K</kbd>
+      <span>for everything</span>
+    </button>
+  );
+}
+
 function CanvasForRun({
   run,
   runs,
   focusedRunId,
   onFocusRun,
+  scrollMem,
+  scrollKey,
 }: {
   run: RunRef;
   runs: RunRef[];
   focusedRunId: Id<"runs"> | null;
   onFocusRun?: (runId: Id<"runs"> | undefined, intent?: string) => void;
+  scrollMem: React.MutableRefObject<Map<string, number>>;
+  scrollKey: string;
 }) {
   const runDoc = useQuery(api.runs.getRun, { runId: run.runId });
   const brief = useQuery(api.brief.getBrief, { runId: run.runId });
   const intent = asCapability(runDoc?.intent ?? run.intent);
   const company = runDoc?.company ?? runDoc?.input ?? "";
 
+  // Restore the saved scroll offset for this board on (re)mount; persist it as
+  // the user scrolls so returning to a mode lands exactly where they left off.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = scrollMem.current.get(scrollKey) ?? 0;
+  }, [scrollKey, scrollMem]);
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (el) scrollMem.current.set(scrollKey, el.scrollTop);
+  };
+
   return (
-    <div className="col-scroll h-full min-h-0 overflow-y-auto">
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      className="col-scroll h-full min-h-0 overflow-y-auto"
+    >
       <div className="mx-auto w-full max-w-4xl px-5 py-5">
         {/* run switcher (only when more than one run) */}
         {runs.length > 1 && (
@@ -335,37 +700,3 @@ function CampaignControl({ runId, intent }: { runId: Id<"runs">; intent: Capabil
   );
 }
 
-// ----------------------------------------------------------------------------
-// CanvasEmpty — the tasteful idle state (no clutter): the product's capabilities.
-// ----------------------------------------------------------------------------
-function CanvasEmpty({ hasConversation }: { hasConversation: boolean }) {
-  const caps = ROUTER_INTENTS.filter((r) =>
-    (CAPABILITIES as readonly string[]).includes(r.intent),
-  );
-  return (
-    <div className="relative grid h-full place-items-center overflow-hidden px-6">
-      <div className="w-full max-w-lg text-center animate-fade-up">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-surface-soft text-ink">
-          <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
-            <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-            <path d="m20 20-4.6-4.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        </span>
-        <h2 className="mt-4 text-headline text-ink">The live canvas</h2>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-ink">
-          {hasConversation
-            ? "Send a message — the swarm spins up here, live."
-            : "Whatever you ask, the work renders here as it happens."}
-        </p>
-        <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
-          {caps.map((c) => (
-            <div key={c.intent} className="rounded-md bg-surface-soft p-3 text-ink">
-              <p className="text-[12.5px] font-fig-headline text-ink">{c.title}</p>
-              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ink">{c.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}

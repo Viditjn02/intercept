@@ -82,6 +82,47 @@ export const getMessages = query({
   },
 });
 
+/**
+ * Recent PROACTIVE assistant messages across ALL conversations — the 24/7 cron's
+ * overnight wins ("overnight I found 3 hot leads…"). Powers Acey's proactive-win
+ * bubble. Bounded, read-only, newest-first; returns [] for a fresh deployment so
+ * the mascot simply shows no bubble. Never throws.
+ *
+ * Bounded scan: pulls the newest ~200 messages off the default creation-time
+ * index and filters to `proactive`, so it stays cheap even with no dedicated
+ * index. The mascot only needs the latest handful.
+ */
+export const recentProactive = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (
+    ctx,
+    { limit },
+  ): Promise<
+    {
+      _id: Id<"messages">;
+      conversationId: Id<"conversations">;
+      runId: Id<"runs"> | null;
+      intent: string | null;
+      content: string;
+      createdAt: number;
+    }[]
+  > => {
+    const take = Math.min(Math.max(limit ?? 5, 1), 20);
+    const recent = await ctx.db.query("messages").order("desc").take(200);
+    return recent
+      .filter((m) => m.proactive === true)
+      .slice(0, take)
+      .map((m) => ({
+        _id: m._id,
+        conversationId: m.conversationId,
+        runId: m.runId ?? null,
+        intent: m.intent ?? null,
+        content: m.content,
+        createdAt: m.createdAt,
+      }));
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Public write — the chat input box calls this.
 // ---------------------------------------------------------------------------

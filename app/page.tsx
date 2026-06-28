@@ -10,6 +10,7 @@ import {
 import ConversationSidebar from "@/components/ConversationSidebar";
 import ChatPanel from "@/components/ChatPanel";
 import CanvasPanel, { type CanvasView } from "@/components/CanvasPanel";
+import CommandPalette from "@/components/CommandPalette";
 import PanelBoundary from "@/components/ErrorBoundary";
 import MascotCompanion from "@/components/mascot/MascotCompanion";
 
@@ -80,7 +81,24 @@ export default function Home() {
       {/* Reactive delight mascot — a fixed bottom-right corner companion that
           lights up on the live swarm's wins. Pure delight, never a chat input;
           pointer-events-none except the sprite, so it never blocks the UI. */}
-      <MascotCompanion runId={focusedRunId} conversationId={conversationId} />
+      <MascotCompanion
+        runId={focusedRunId}
+        conversationId={conversationId}
+        onFocusRun={focusRun}
+        onOpenBrain={() => setCanvasView("brain")}
+      />
+
+      {/* ⌘K command palette — mounted once; owns its own global listener. The
+          power + discovery layer: kick off any capability, jump conversations,
+          flip the canvas lens, toggle theme/sidebar — all keyboard-first. */}
+      <CommandPalette
+        conversationId={conversationId}
+        canvasView={canvasView}
+        sidebarCollapsed={collapsed}
+        onConversation={selectConversation}
+        onSetCanvasView={setCanvasView}
+        onToggleSidebar={() => setCollapsed((v) => !v)}
+      />
     </main>
   );
 }

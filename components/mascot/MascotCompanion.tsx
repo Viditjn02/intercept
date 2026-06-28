@@ -1,27 +1,42 @@
 "use client";
 
 /**
- * MascotCompanion — the fixed, floating corner companion. Mount this ONCE
- * (app/page.tsx or app/layout.tsx). It wires:
- *   • <Mascot/>              — the recolored sprite (state-driven animations)
- *   • useMascotReactions()   — maps the LIVE swarm → mood + ambient one-liners
- *   • useMascotGaze()        — pupils track the cursor (no framer-motion)
- *   • a tiny speech bubble   — FUN reactions only, auto-dismisses, NEVER an input
+ * MascotCompanion — the fixed, floating corner companion ("Acey"). Mount this
+ * ONCE (app/page.tsx). It now runs TWO layers:
  *
- * Repurposed from Acme's Companion: the chat panel / book flow / FAQ is dropped.
- * This is delight, reactive to the system — not a guide. It sits in the corner,
- * blinks, breathes, glances at your cursor, and celebrates the swarm's wins.
+ *   • REACTIVE (useMascotReactions) — mood + ambient one-liners off the live swarm
+ *     (thinking / celebrate / concerned / peek / nod). Pure delight.
+ *   • INTELLIGENT (useMascotIntel) — the DEEPENED companion:
+ *       1. PROACTIVE WINS  — surfaces the 24/7 cron's overnight `proactive`
+ *          messages as a clickable bubble ("found 3 hot leads overnight 👀")
+ *          that focuses the run that produced them.
+ *       2. GETS SMARTER    — a "learned N" micro-badge + an antenna `glow` that
+ *          brightens as the compounding brain grows; clicking the badge opens
+ *          the Brain canvas/lens.
+ *       3. NEXT-ACTION     — after a win, ONE clickable suggestion ("draft
+ *          outreach to Acme?") that triggers a REAL run via createRun (NOT a
+ *          chat input).
+ *       4. GLANCEABLE STATUS — clicking Acey opens a tiny popover ("Working on
+ *          <co> · Found <n> · Knows <n> facts") with links + an empty-state greet.
  *
- * Self-contained styling: Tailwind classes are used for layout + the bubble, but
- * the COLORS come from INTERCEPT's theme tokens (bg-canvas / text-ink / border /
- * accent-magenta), so it reads correctly in BOTH light and night mode. Swap the
- * class names for plain inline styles if you don't want a Tailwind dependency.
+ * GRACEFUL: every new signal is optional — a missing query / empty brain / fresh
+ * deployment simply yields no bubble, no badge, no nudge. Nothing here throws or
+ * blocks a run. Wiring (onFocusRun / onOpenBrain) is OPTIONAL: without it the
+ * popover still informs; with it, clicks navigate. The sprite stays decorative;
+ * only the explicit buttons/affordances are interactive (and labelled).
  */
 
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Mascot, useMascotGaze } from "./Mascot";
 import { useMascotReactions } from "./useMascotReactions";
+import { useMascotIntel } from "./useMascotIntel";
+import MascotPopover from "./MascotPopover";
 import type { Id } from "@/convex/_generated/dataModel";
+
+/** How long the next-action nudge bubble lingers after a win (ms). */
+const NUDGE_MS = 7000;
 
 interface MascotCompanionProps {
   /** The focused run — enables richer per-run wins (threads/emails/posts/ads). */
@@ -30,48 +45,178 @@ interface MascotCompanionProps {
   conversationId?: Id<"conversations"> | null;
   /** Rendered sprite size (px). */
   size?: number;
+  /** OPTIONAL: focus a run's canvas (proactive-win click + popover "focus"). */
+  onFocusRun?: (runId: Id<"runs">) => void;
+  /** OPTIONAL: open the Brain canvas/lens (badge + popover "brain" links). */
+  onOpenBrain?: () => void;
 }
 
 export default function MascotCompanion({
   runId = null,
   conversationId = null,
   size = 64,
+  onFocusRun,
+  onOpenBrain,
 }: MascotCompanionProps) {
-  const spriteRef = useRef<HTMLDivElement>(null);
+  const spriteRef = useRef<HTMLButtonElement>(null);
   const gaze = useMascotGaze(spriteRef);
   const { state, speech, dismissSpeech, busy } = useMascotReactions({
     runId,
     conversationId,
   });
+  const { proactiveWin, dismissProactive, brain, status, nextAction } =
+    useMascotIntel({ runId, conversationId });
+
+  const createRun = useMutation(api.runs.createRun);
+
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [nudgeVisible, setNudgeVisible] = useState(false);
+  const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Latch the next-action nudge for a few seconds when a WIN beat fires (so it's
+  // clickable past the one-shot animation). Cleared on unmount.
+  useEffect(() => {
+    if (state === "celebrate" && nextAction) {
+      setNudgeVisible(true);
+      if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+      nudgeTimer.current = setTimeout(() => setNudgeVisible(false), NUDGE_MS);
+    }
+  }, [state, nextAction]);
+  useEffect(
+    () => () => {
+      if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+    },
+    [],
+  );
+
+  // Fire a next-action: spawn a REAL run via createRun, then focus it. Defensive —
+  // any failure is swallowed so the mascot never breaks the page.
+  const act = useCallback(async () => {
+    if (!nextAction) return;
+    setNudgeVisible(false);
+    setPopoverOpen(false);
+    try {
+      const newRunId = await createRun({
+        intent: nextAction.intent,
+        input: nextAction.input,
+        inputType: nextAction.inputType,
+        trigger: "manual",
+        ...(nextAction.conversationId
+          ? { conversationId: nextAction.conversationId }
+          : {}),
+      });
+      if (newRunId && onFocusRun) onFocusRun(newRunId as Id<"runs">);
+    } catch {
+      // never throw from a delight affordance.
+    }
+  }, [nextAction, createRun, onFocusRun]);
+
+  // Click a proactive win → focus its run + dismiss it.
+  const openProactive = () => {
+    if (!proactiveWin) return;
+    if (proactiveWin.runId && onFocusRun) onFocusRun(proactiveWin.runId);
+    dismissProactive();
+  };
+
+  // Click the "learned N" badge → open the Brain canvas.
+  const openBrain = () => {
+    setPopoverOpen(false);
+    onOpenBrain?.();
+  };
+
+  const showLearnedBadge = brain.learnedDelta > 0;
 
   return (
     <div
       className="pointer-events-none fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2"
-      aria-hidden="true"
     >
-      {/* Fun, ambient one-liner. Decorative only — it is NOT a chat input. */}
-      {speech && (
+      {/* ---- Bubble stack (one at a time, by priority) ---- */}
+      {popoverOpen ? (
+        <MascotPopover
+          status={status}
+          brain={brain}
+          nextAction={nextAction}
+          onFocusRun={
+            status.runId && onFocusRun
+              ? () => {
+                  onFocusRun(status.runId as Id<"runs">);
+                  setPopoverOpen(false);
+                }
+              : undefined
+          }
+          onOpenBrain={onOpenBrain ? openBrain : undefined}
+          onAct={nextAction ? act : undefined}
+          onClose={() => setPopoverOpen(false)}
+        />
+      ) : proactiveWin ? (
+        // PROACTIVE WIN — the overnight surprise. Clickable → focus its run.
+        <div className="pointer-events-auto flex max-w-[248px] items-stretch gap-1">
+          <button
+            type="button"
+            onClick={openProactive}
+            className="flex-1 rounded-2xl rounded-br-sm border border-hairline bg-canvas px-3.5 py-2 text-left text-sm text-ink shadow-xl outline-none transition-opacity hover:opacity-90"
+            title="focus this run"
+          >
+            <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-accent-magenta">
+              while you were away
+            </span>
+            {proactiveWin.line}
+          </button>
+          <button
+            type="button"
+            onClick={dismissProactive}
+            aria-label="Dismiss"
+            className="grid w-6 shrink-0 place-items-center rounded-full text-ink/40 transition-colors hover:bg-ink/5 hover:text-ink/70"
+          >
+            ✕
+          </button>
+        </div>
+      ) : nudgeVisible && nextAction ? (
+        // NEXT-ACTION nudge after a win — triggers a real run.
+        <button
+          type="button"
+          onClick={act}
+          className="pointer-events-auto max-w-[240px] rounded-2xl rounded-br-sm border border-hairline bg-ink px-3.5 py-2 text-left text-sm font-medium text-canvas shadow-xl outline-none transition-opacity hover:opacity-90"
+        >
+          {nextAction.label}
+        </button>
+      ) : speech ? (
+        // Fun, ambient one-liner. Decorative; tapping dismisses early.
         <button
           type="button"
           onClick={dismissSpeech}
           className="pointer-events-auto max-w-[220px] rounded-2xl rounded-br-sm border border-hairline bg-canvas px-3.5 py-2 text-left text-sm text-ink shadow-xl outline-none transition-opacity hover:opacity-90"
-          // The bubble is a delight beat; tapping it just dismisses early.
-          aria-hidden="true"
-          tabIndex={-1}
         >
           {speech}
         </button>
-      )}
+      ) : null}
 
-      {/* The mascot itself. Transparent hit area; a subtle magenta ring only on
-          hover so it never reads as a plain button. */}
-      <div
-        ref={spriteRef}
-        className="pointer-events-auto grid size-20 place-items-center rounded-full ring-2 ring-transparent transition-[transform,box-shadow] hover:ring-accent-magenta/25"
-        title={busy ? "the swarm is working…" : "INTERCEPT"}
-        style={{ filter: "drop-shadow(0 6px 14px rgba(15,20,40,0.28))" }}
-      >
-        <Mascot state={state} size={size} gaze={gaze} />
+      {/* ---- The sprite + the "learned N" micro-badge ---- */}
+      <div className="pointer-events-auto relative">
+        <button
+          type="button"
+          ref={spriteRef}
+          onClick={() => setPopoverOpen((v) => !v)}
+          aria-label={
+            busy ? "Acey — the swarm is working" : "Acey — open status"
+          }
+          className="grid size-20 place-items-center rounded-full ring-2 ring-transparent outline-none transition-[transform,box-shadow] hover:ring-accent-magenta/25 focus-visible:ring-accent-magenta/40"
+          style={{ filter: "drop-shadow(0 6px 14px rgba(15,20,40,0.28))" }}
+        >
+          <Mascot state={state} size={size} gaze={gaze} glow={brain.glow} />
+        </button>
+
+        {/* GETS-SMARTER badge — clicking opens the brain. */}
+        {showLearnedBadge && (
+          <button
+            type="button"
+            onClick={openBrain}
+            title="open the brain"
+            className="absolute -left-1 -top-1 rounded-full border border-hairline bg-accent-magenta px-2 py-0.5 text-[10px] font-semibold leading-none text-white shadow-md transition-transform hover:scale-105"
+          >
+            learned {brain.learnedDelta}
+          </button>
+        )}
       </div>
     </div>
   );

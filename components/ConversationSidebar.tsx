@@ -13,6 +13,7 @@ import {
 } from "./chatApi";
 import type { ConversationDoc } from "./types";
 import ThemeToggle from "./ThemeToggle";
+import IconRail, { type IconRailMode } from "./IconRail";
 
 // ============================================================================
 // ConversationSidebar — the rail of past conversations + "New chat".
@@ -28,6 +29,12 @@ interface ConversationSidebarProps {
   brainActive?: boolean;
   /** Open the compounding-knowledge Brain board on the canvas. */
   onOpenBrain?: () => void;
+  /**
+   * Jump the canvas to a mode from the left icon rail. Optional + graceful:
+   * brain always falls back to `onOpenBrain`; modes the page hasn't wired yet
+   * simply no-op (the rail still teaches name + shortcut via its tooltip).
+   */
+  onSelectMode?: (mode: IconRailMode) => void;
 }
 
 function BrainIcon({ className }: { className?: string }) {
@@ -75,6 +82,7 @@ export default function ConversationSidebar({
   onToggle,
   brainActive = false,
   onOpenBrain,
+  onSelectMode,
 }: ConversationSidebarProps) {
   const conversations = useQuery(listConversationsRef, {}) as
     | ConversationDoc[]
@@ -107,9 +115,20 @@ export default function ConversationSidebar({
     if (id === activeId) onSelect(null);
   };
 
+  // The left icon rail is the keyboard-free escape hatch. Brain is wired today
+  // via `onOpenBrain`; everything else passes through `onSelectMode` (which the
+  // page may not provide yet — graceful no-op, never throws).
+  const activeMode: IconRailMode = brainActive ? "brain" : "threads";
+  const onRailSelect = (mode: IconRailMode) => {
+    if (mode === "brain") onOpenBrain?.();
+    onSelectMode?.(mode);
+  };
+
   if (collapsed) {
     return (
-      <div className="flex h-full w-12 flex-col items-center gap-3 border-r border-hairline bg-surface-soft py-4">
+      <div className="flex h-full">
+      <IconRail activeMode={activeMode} onSelect={onRailSelect} />
+      <div className="glass-1 flex h-full w-12 flex-col items-center gap-3 py-4">
         <button
           onClick={onToggle}
           className="flex h-8 w-8 items-center justify-center rounded-full border border-hairline text-ink transition-colors hover:bg-canvas"
@@ -145,11 +164,14 @@ export default function ConversationSidebar({
           <ThemeToggle />
         </div>
       </div>
+      </div>
     );
   }
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-hairline bg-surface-soft">
+    <div className="flex h-full">
+    <IconRail activeMode={activeMode} onSelect={onRailSelect} />
+    <div className="glass-1 flex h-full w-64 flex-col">
       {/* brand + collapse */}
       <div className="flex items-center justify-between px-3.5 py-3.5">
         <div className="flex items-center gap-2">
@@ -211,7 +233,12 @@ export default function ConversationSidebar({
                       active ? "bg-canvas" : "hover:bg-canvas",
                     )}
                   >
-                    <span className={cn("mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full", intentDot(c.lastIntent))} />
+                    <span
+                      className={cn(
+                        "mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-inset ring-white/55",
+                        intentDot(c.lastIntent),
+                      )}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className={cn("block truncate text-[12.5px] text-ink", active && "font-fig-headline")}>
                         {c.title || "Untitled"}
@@ -266,6 +293,7 @@ export default function ConversationSidebar({
         <span className="caption text-ink">Live intent radar · 24/7</span>
         <ThemeToggle />
       </div>
+    </div>
     </div>
   );
 }

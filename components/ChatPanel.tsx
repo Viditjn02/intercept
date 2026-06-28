@@ -21,12 +21,47 @@ import type { ChatMessageDoc } from "./types";
 // Paste/type ANYTHING; the router decides and the canvas lights up beside it.
 // ============================================================================
 
-const EXAMPLES: { label: string; text: string }[] = [
-  { label: "Find live buyer threads", text: "find where buyers are talking about resend.com" },
-  { label: "Build an outbound list", text: "find customers for resend.com — fintech Heads of Growth" },
-  { label: "Competitor ad teardown", text: "what ads is brex running right now" },
-  { label: "Make a video ad", text: "make me a launch video ad for an open-source Postgres host" },
+// The composer is mode-aware: the placeholder + the visible example pills follow
+// whatever the canvas is showing, derived from the latest routed message intent.
+// Pipeline (outbound/discovery), AdFactory (creative), Brain (recall) + a neutral
+// default for a fresh thread. Everything stays self-contained to this panel so it
+// can never throw or depend on the parent passing extra props.
+type Mode = "pipeline" | "adfactory" | "brain" | "default";
+
+const EXAMPLES: { label: string; text: string; mode: Mode }[] = [
+  { label: "Find live buyer threads", text: "find where buyers are talking about resend.com", mode: "pipeline" },
+  { label: "Build an outbound list", text: "find customers for resend.com — fintech Heads of Growth", mode: "pipeline" },
+  { label: "Competitor ad teardown", text: "what ads is brex running right now", mode: "adfactory" },
+  { label: "Make a video ad", text: "make me a launch video ad for an open-source Postgres host", mode: "adfactory" },
+  { label: "Recall what we know", text: "what did we learn about resend", mode: "brain" },
 ];
+
+const MODE_PLACEHOLDER: Record<Mode, string> = {
+  pipeline: "Ask about a deal, or 'add Acme to pipeline'…",
+  adfactory: "Describe an ad, or 'show top performers'…",
+  brain: "Ask what I know, or paste a doc to teach me…",
+  default: "Paste a company, a competitor, an idea — or just ask…",
+};
+
+// Map a routed message intent → the canvas mode it lit up.
+function modeForIntent(intent?: string): Mode {
+  switch (intent) {
+    case "outbound":
+    case "outreach":
+    case "discovery":
+    case "analyze":
+      return "pipeline";
+    case "content":
+    case "competitor":
+    case "replicate":
+    case "social":
+      return "adfactory";
+    case "brain":
+      return "brain";
+    default:
+      return "default";
+  }
+}
 
 interface ChatPanelProps {
   conversationId: Id<"conversations"> | null;
@@ -58,6 +93,21 @@ export default function ChatPanel({
   const streamingActive = (messages ?? []).some(
     (m) => m.role === "assistant" && m.isStreaming,
   );
+
+  // The active canvas mode = the intent of the most recent routed message.
+  // Drives the context-aware placeholder + which example pills surface.
+  const activeIntent = (() => {
+    const list = messages ?? [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i]?.intent) return list[i].intent;
+    }
+    return undefined;
+  })();
+  const mode = modeForIntent(activeIntent);
+  const modePills = (() => {
+    const scoped = EXAMPLES.filter((e) => e.mode === mode);
+    return scoped.length ? scoped : EXAMPLES;
+  })();
 
   // Auto-grow the textarea.
   useLayoutEffect(() => {
@@ -146,14 +196,33 @@ export default function ChatPanel({
       {/* composer */}
       <div className="border-t border-hairline bg-canvas px-4 py-3">
         <form onSubmit={onSubmit} className="mx-auto w-full max-w-2xl">
-          <div className="text-input flex items-end gap-2 !p-2">
+          {/* Context-aware example prompts — VISIBLE pills (not hidden in the
+              placeholder), scoped to the active canvas mode. Shown once a thread
+              is underway; the empty-state Welcome already surfaces the full set. */}
+          {hasMessages && (
+            <div className="col-scroll mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
+              {modePills.map((ex) => (
+                <button
+                  key={ex.text}
+                  type="button"
+                  onClick={() => void submit(ex.text)}
+                  disabled={sending}
+                  className="shrink-0 whitespace-nowrap rounded-full border border-hairline bg-surface-soft px-3 py-1 text-[12px] font-fig-headline text-ink/80 transition-colors hover:bg-canvas hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                  title={ex.text}
+                >
+                  {ex.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-end gap-2 glass-2 rounded-[var(--radius-lg)] p-2 transition-shadow focus-within:border-[rgb(var(--accent-magenta)/0.35)] focus-within:shadow-[0_8px_32px_rgb(0_0_0/0.10),0_0_0_3px_rgb(var(--accent-magenta)/0.12)]">
             <textarea
               ref={textareaRef}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={onKeyDown}
               rows={1}
-              placeholder="Paste a company, a competitor, an idea — or just ask…"
+              placeholder={MODE_PLACEHOLDER[mode]}
               className="max-h-[200px] flex-1 resize-none bg-transparent px-2.5 py-2 text-[14px] leading-relaxed text-ink placeholder:text-ink/35 focus:outline-none"
               aria-label="Message INTERCEPT"
             />
