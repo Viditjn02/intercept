@@ -89,8 +89,12 @@ export interface BrainQueryResult {
 export function brainQuery(question: string): Promise<BrainQueryResult> {
   return new Promise((resolve) => {
     const bin = resolveBin();
-    const trimmed = (question ?? "").trim();
-    if (!bin || !trimmed) {
+    // Strip leading dashes/space so a question beginning with "-"/"--" can't be
+    // smuggled to the gbrain CLI as a flag (argv flag injection). execFile already
+    // prevents shell injection (array args, no shell); this closes the flag vector
+    // without depending on gbrain supporting a "--" options terminator.
+    const safeQuestion = (question ?? "").trim().replace(/^[-\s]+/, "").trim();
+    if (!bin || !safeQuestion) {
       resolve({ available: false, answer: "" });
       return;
     }
