@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -19,6 +19,8 @@ import AdGallery from "./AdGallery";
 import AdFactoryPanel from "./AdFactoryPanel";
 import CreativePanel from "./CreativePanel";
 import BrainPanel from "./BrainPanel";
+import BrainCanvas from "./BrainCanvas";
+import PanelBoundary from "./ErrorBoundary";
 import LiveMetrics from "./LiveMetrics";
 import ContentCalendar from "./ContentCalendar";
 import PitchLab from "./PitchLab";
@@ -37,10 +39,18 @@ import type { CampaignDoc, ChatMessageDoc } from "./types";
 // clutter. The swarm tiles + live event feed frame every capability.
 // ============================================================================
 
+// The canvas has two lenses: the live `run` work surface (default) and the
+// `brain` — the compounding knowledge board. `view`/`onView` are optional so the
+// panel still works standalone; when supplied (by the page) the left-rail Brain
+// item can drive the lens too.
+export type CanvasView = "run" | "brain";
+
 interface CanvasPanelProps {
   conversationId: Id<"conversations"> | null;
   focusedRunId?: Id<"runs"> | null;
   onFocusRun?: (runId: Id<"runs"> | undefined, intent?: string) => void;
+  view?: CanvasView;
+  onView?: (view: CanvasView) => void;
 }
 
 interface RunRef {
@@ -59,11 +69,23 @@ function capabilityTitle(intent: Capability): string {
   return ROUTER_INTENTS.find((r) => r.intent === intent)?.title ?? intent;
 }
 
-export default function CanvasPanel({ conversationId, focusedRunId, onFocusRun }: CanvasPanelProps) {
+export default function CanvasPanel({
+  conversationId,
+  focusedRunId,
+  onFocusRun,
+  view: controlledView,
+  onView,
+}: CanvasPanelProps) {
   const messages = useQuery(
     getMessagesRef,
     conversationId ? { conversationId } : "skip",
   ) as ChatMessageDoc[] | undefined;
+
+  // The lens can be controlled by the page (left-rail Brain item) or owned
+  // locally when the panel is used standalone.
+  const [localView, setLocalView] = useState<CanvasView>("run");
+  const view = controlledView ?? localView;
+  const setView = onView ?? setLocalView;
 
   // Every run spawned in this conversation, in order.
   const runs: RunRef[] = useMemo(() => {
@@ -79,17 +101,76 @@ export default function CanvasPanel({ conversationId, focusedRunId, onFocusRun }
   const activeRun =
     runs.find((r) => r.runId === focusedRunId) ?? runs[runs.length - 1] ?? null;
 
-  if (!activeRun) {
-    return <CanvasEmpty hasConversation={!!conversationId} />;
-  }
-
   return (
-    <CanvasForRun
-      run={activeRun}
-      runs={runs}
-      focusedRunId={focusedRunId ?? null}
-      onFocusRun={onFocusRun}
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      <CanvasLens view={view} onView={setView} />
+      <div className="min-h-0 flex-1">
+        {view === "brain" ? (
+          // The brain board comes online the moment its Convex functions deploy;
+          // until then PanelBoundary shows a calm fallback instead of crashing.
+          <PanelBoundary label="Waking the brain…">
+            <BrainCanvas />
+          </PanelBoundary>
+        ) : activeRun ? (
+          <CanvasForRun
+            run={activeRun}
+            runs={runs}
+            focusedRunId={focusedRunId ?? null}
+            onFocusRun={onFocusRun}
+          />
+        ) : (
+          <CanvasEmpty hasConversation={!!conversationId} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// CanvasLens — the Run | Brain toggle. Run = the live work surface for the
+// active run; Brain = the compounding knowledge board (global, always available
+// — even before any run exists).
+// ----------------------------------------------------------------------------
+function CanvasLens({
+  view,
+  onView,
+}: {
+  view: CanvasView;
+  onView: (view: CanvasView) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end border-b border-line/60 px-5 py-2">
+      <div className="inline-flex rounded-lg border border-line bg-panel/60 p-0.5 text-[11px] font-medium">
+        <LensTab active={view === "run"} onClick={() => onView("run")}>
+          Run
+        </LensTab>
+        <LensTab active={view === "brain"} onClick={() => onView("brain")}>
+          <span aria-hidden className="mr-1">🧠</span>Brain
+        </LensTab>
+      </div>
+    </div>
+  );
+}
+
+function LensTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "rounded-md px-2.5 py-1 transition-colors",
+        active ? "bg-accent/15 text-accent" : "text-white/50 hover:text-white",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

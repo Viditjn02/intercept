@@ -154,3 +154,58 @@ export interface RunSummary {
   qualifiedCount?: number;
   contactedCount?: number;
 }
+
+// ---------------------------------------------------------------------------
+// KNOWLEDGE — the compounding brain (convex/knowledge.ts `knowledge_pages`).
+// One page per GTM entity; `facts[]` is the visible "getting smarter" metric.
+// Mirrors the schema plan; every absent-able field is optional so a thin
+// first-run page (or a partially-deployed engine) still renders. These shapes
+// let the UI consume the typed function references in BrainCanvas without
+// depending on cross-package return inference (same pattern as chatApi).
+// ---------------------------------------------------------------------------
+export type KnowledgeEntityType = "company" | "competitor" | "icp" | "campaign";
+
+export interface KnowledgeFactDoc {
+  text: string;
+  kind: string;
+  confidence?: number;
+  source?: string;
+  url?: string;
+  runId?: Id<"runs">;
+  learnedAt: number;
+}
+
+export interface KnowledgeSourceDoc {
+  runId: Id<"runs">;
+  intent: string;
+  at: number;
+}
+
+export interface KnowledgePageDoc {
+  // `string`, not Id<"knowledge_pages">: the table is added by the engine builder
+  // in parallel and isn't in the generated dataModel yet, so a branded Id here
+  // would not type-check. The UI only uses it as a React key + dedup id.
+  _id: string;
+  _creationTime: number;
+  entityType: KnowledgeEntityType;
+  entityKey: string;
+  title: string;
+  content?: string;
+  facts?: KnowledgeFactDoc[];
+  sources?: KnowledgeSourceDoc[];
+  factCount?: number;
+  runCount?: number;
+  lintedAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+// The global header stat. All fields optional so the UI can fall back to
+// deriving the numbers from the page list if the engine omits a field.
+export interface BrainStatsDoc {
+  pages?: number;
+  facts?: number;
+  runs?: number;
+  byType?: Partial<Record<KnowledgeEntityType, number>>;
+  lastUpdatedAt?: number;
+}

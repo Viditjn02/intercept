@@ -549,4 +549,59 @@ export default defineSchema({
     embedSnippet: v.string(), // paste-ready init code
     generatedAt: v.number(),
   }).index("by_run", ["runId"]),
+
+  // ==========================================================================
+  // KNOWLEDGE ENGINE — the compounding wiki loop (Ingest → Query → Lint).
+  // ONE page per GTM entity. Every run's REAL outputs become durable, dedup-able
+  // facts here; the NEXT run on that entity pulls them into its prompt via
+  // internal.knowledge.queryContext; the daily lint condenses pages so the
+  // prompt never bloats. Mirrors lib/knowledge.ts (the single source of truth
+  // for the loop's bounds). Every absent-able field is OPTIONAL so a thin
+  // first-run page is valid; `embedding` is optional so a page written while
+  // OpenAI is down still stores + lists (it simply isn't a vector hit until the
+  // next ingest/lint recomputes it). Purely additive — nothing here can block a
+  // run or a brief render.
+  // ==========================================================================
+  knowledge_pages: defineTable({
+    entityType: v.union(
+      v.literal("company"), // the analyzed/sold company (run.company / routedDomain)
+      v.literal("competitor"), // an advertiser surfaced by the ad scan
+      v.literal("icp"), // a buyer-segment page (normalized brief.icp)
+      v.literal("campaign"), // a standing outbound campaign (campaignId)
+    ),
+    entityKey: v.string(), // normalized slug — the dedup key (e.g. "resend.com")
+    title: v.string(), // human label ("Resend — knowledge")
+    content: v.string(), // compiled markdown page body (the injectable narrative)
+    facts: v.array(
+      v.object({
+        text: v.string(), // the durable statement
+        kind: v.string(), // thread|prospect|reply|ad|post|copy|onboarding|positioning|trend|insight
+        confidence: v.optional(v.number()), // 0-1
+        source: v.optional(v.string()), // detective | adscout | writer | ...
+        url: v.optional(v.string()), // clickable provenance when present
+        runId: v.optional(v.id("runs")), // which run learned it
+        learnedAt: v.number(),
+      }),
+    ),
+    sources: v.array(
+      v.object({
+        runId: v.id("runs"),
+        intent: v.string(),
+        at: v.number(),
+      }),
+    ),
+    embedding: v.optional(v.array(v.float64())), // text-embedding-3-small (1536d) of title+top facts
+    factCount: v.number(), // facts.length — the visible "growing" metric
+    runCount: v.number(), // sources.length — how many runs have compounded here
+    lintedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_entity", ["entityType", "entityKey"]) // exact upsert lookup
+    .index("by_type_updated", ["entityType", "updatedAt"]) // listing
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 1536,
+      filterFields: ["entityType"],
+    }),
 });

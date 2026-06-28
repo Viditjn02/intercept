@@ -23,6 +23,24 @@ interface ConversationSidebarProps {
   onSelect: (id: Id<"conversations"> | null) => void;
   collapsed: boolean;
   onToggle: () => void;
+  /** Whether the canvas is currently showing the Brain lens. */
+  brainActive?: boolean;
+  /** Open the compounding-knowledge Brain board on the canvas. */
+  onOpenBrain?: () => void;
+}
+
+function BrainIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M9 4.5a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0-1 4.8A2.5 2.5 0 0 0 7 16.5a2.5 2.5 0 0 0 5 .5V6.5A2.5 2.5 0 0 0 9 4.5ZM15 4.5A2.5 2.5 0 0 1 17.5 7a2.5 2.5 0 0 1 1 4.8A2.5 2.5 0 0 1 17 16.5a2.5 2.5 0 0 1-5 .5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 function intentDot(intent?: string): string {
@@ -54,6 +72,8 @@ export default function ConversationSidebar({
   onSelect,
   collapsed,
   onToggle,
+  brainActive = false,
+  onOpenBrain,
 }: ConversationSidebarProps) {
   const conversations = useQuery(listConversationsRef, {}) as
     | ConversationDoc[]
@@ -107,6 +127,21 @@ export default function ConversationSidebar({
             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
+        <div className="mt-auto">
+          <button
+            onClick={onOpenBrain}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+              brainActive
+                ? "border-accent/40 bg-accent/10 text-accent"
+                : "border-line text-white/50 hover:border-accent/40 hover:text-white",
+            )}
+            aria-label="Open the brain"
+            title="The brain — compounding knowledge"
+          >
+            <BrainIcon className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     );
   }
@@ -202,6 +237,27 @@ export default function ConversationSidebar({
             })}
           </ul>
         )}
+      </div>
+
+      {/* the brain — the compounding-knowledge board, always one click away */}
+      <div className="border-t border-line px-3 py-2">
+        <button
+          onClick={onOpenBrain}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] transition-colors",
+            brainActive
+              ? "bg-accent/10 text-accent"
+              : "text-white/70 hover:bg-white/5 hover:text-white",
+          )}
+        >
+          <BrainIcon className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">The brain</span>
+            <span className="block text-[10px] text-white/30">
+              Compounding knowledge — grows every run
+            </span>
+          </span>
+        </button>
       </div>
 
       <div className="border-t border-line px-3.5 py-2.5 text-[10px] text-white/25">

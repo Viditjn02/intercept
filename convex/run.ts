@@ -241,5 +241,13 @@ export const finalize = internalMutation({
           : "partial";
 
     await ctx.db.patch(runId, { status });
+
+    // Compounding knowledge loop: schedule the best-effort INGEST as a follow-up
+    // (a mutation scheduling an action is the standard Convex hand-off). This
+    // runs ONCE per run — finalize early-returns above once status != "running",
+    // so a re-fire (deadline + early finish) can't double-schedule. ingestFromRun
+    // is fully guarded (returns { pages:0, facts:0 } on any failure) and never
+    // touches run status, so this can never block or alter the run's outcome.
+    await ctx.scheduler.runAfter(0, internal.knowledge.ingestFromRun, { runId });
   },
 });

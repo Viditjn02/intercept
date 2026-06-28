@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/resizable";
 import ConversationSidebar from "@/components/ConversationSidebar";
 import ChatPanel from "@/components/ChatPanel";
-import CanvasPanel from "@/components/CanvasPanel";
+import CanvasPanel, { type CanvasView } from "@/components/CanvasPanel";
 import PanelBoundary from "@/components/ErrorBoundary";
 
 // ============================================================================
@@ -22,10 +22,12 @@ export default function Home() {
   const [conversationId, setConversationId] = useState<Id<"conversations"> | null>(null);
   const [focusedRunId, setFocusedRunId] = useState<Id<"runs"> | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [canvasView, setCanvasView] = useState<CanvasView>("run");
 
   const selectConversation = (id: Id<"conversations"> | null) => {
     setConversationId(id);
     setFocusedRunId(null); // each conversation follows its own latest run
+    setCanvasView("run"); // picking a chat returns to its live work surface
   };
 
   const focusRun = (runId: Id<"runs"> | undefined) => {
@@ -40,6 +42,8 @@ export default function Home() {
           onSelect={selectConversation}
           collapsed={collapsed}
           onToggle={() => setCollapsed((v) => !v)}
+          brainActive={canvasView === "brain"}
+          onOpenBrain={() => setCanvasView("brain")}
         />
       </PanelBoundary>
 
@@ -64,6 +68,8 @@ export default function Home() {
                 conversationId={conversationId}
                 focusedRunId={focusedRunId}
                 onFocusRun={focusRun}
+                view={canvasView}
+                onView={setCanvasView}
               />
             </PanelBoundary>
           </ResizablePanel>

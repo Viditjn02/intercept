@@ -25,4 +25,16 @@ crons.interval(
   {},
 );
 
+// The compounding knowledge loop's BOUND. Once a day, condense any entity page
+// that has grown past its fact/byte threshold (merge near-dupes, drop stale
+// contradictions, recompute the embedding) so the wiki stays lean and the
+// injected context never bloats a prompt. Coarse + cheap: lintPages self-bounds
+// via pagesNeedingLint and is fully guarded (never throws).
+crons.interval(
+  "intercept knowledge lint",
+  { hours: 24 },
+  internal.knowledge.lintPages,
+  {},
+);
+
 export default crons;
