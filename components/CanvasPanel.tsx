@@ -20,6 +20,7 @@ import {
 } from "@/lib/contract";
 import { cn } from "@/lib/utils";
 import CanvasGhost from "./CanvasGhost";
+import SwarmBoot from "./SwarmBoot";
 import SwarmBoard from "./SwarmBoard";
 import DiscoveryBoard from "./DiscoveryBoard";
 import ProspectPipeline from "./ProspectPipeline";
@@ -128,6 +129,46 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+// The "swarm is spinning up" beat — how long the boot loader holds a freshly
+// opened / fired RUN board before the real content is revealed. Long enough to
+// read as live work starting (so a pre-warmed / cached run never snaps in
+// instantly and looks fake), short enough to stay snappy.
+const SWARM_BOOT_MS = 1150;
+
+// useSwarmBoot — a brief boot beat shown ONCE per newly-focused run on the run
+// lens, then it gets out of the way. Keyed on the run id: a timer starts when
+// the id changes to a NEW value and is cleared on unmount / id change (no leaks,
+// no double-fire). The booting flag is derived during render so the beat owns the
+// run board's very first committed frame — no flash of the real board first —
+// while the timer itself lives in an effect (SSR-safe, client-only). It re-runs
+// only when the run id actually changes, never on incidental re-renders, and any
+// quiet path returns false so the board simply reveals exactly as it does today.
+function useSwarmBoot(runId: Id<"runs"> | null): boolean {
+  const [bootingId, setBootingId] = useState<Id<"runs"> | null>(null);
+  const [seenId, setSeenId] = useState<Id<"runs"> | null>(null);
+
+  // A genuinely new run board: begin the beat synchronously, pre-paint.
+  if (runId && runId !== seenId) {
+    setSeenId(runId);
+    setBootingId(runId);
+  }
+
+  useEffect(() => {
+    if (!bootingId) return;
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      // Only retire the beat for the run that started it.
+      if (alive) setBootingId((cur) => (cur === bootingId ? null : cur));
+    }, SWARM_BOOT_MS);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [bootingId]);
+
+  return !!runId && bootingId === runId;
+}
+
 export default function CanvasPanel({
   conversationId,
   focusedRunId,
@@ -174,6 +215,12 @@ export default function CanvasPanel({
     runs.find((r) => r.runId === focusedRunId) ?? runs[runs.length - 1] ?? null;
 
   const reducedMotion = usePrefersReducedMotion();
+
+  // A ~1s "swarm spinning up" beat on a freshly-focused run board (run lens only).
+  // Watching the run id ONLY while the run view is active means a brain/radar ↔ run
+  // lens flip on the same run never re-fires, but a genuinely new / re-opened run
+  // (the id changes) does. Consumed solely inside the run branch below.
+  const booting = useSwarmBoot(view === "run" ? activeRun?.runId ?? null : null);
 
   // MORPH, don't swap. Wrap any mode change in the View Transitions API so the
   // outgoing board fades while the incoming one scales in. Always feature-detect
@@ -261,14 +308,21 @@ export default function CanvasPanel({
               <RadarPanel />
             </PanelBoundary>
           ) : activeRun ? (
-            <CanvasForRun
-              run={activeRun}
-              runs={runs}
-              focusedRunId={focusedRunId ?? null}
-              onFocusRun={morphFocus}
-              scrollMem={scrollMem}
-              scrollKey={morphKey}
-            />
+            // Brief "spinning up the swarm" beat on a freshly-opened/-fired board,
+            // THEN the real board (live skeletons or finished data) takes over
+            // exactly as today. Purely additive — when not booting this is a no-op.
+            booting ? (
+              <SwarmBoot label={modeMeta(activeRun.intent).label} />
+            ) : (
+              <CanvasForRun
+                run={activeRun}
+                runs={runs}
+                focusedRunId={focusedRunId ?? null}
+                onFocusRun={morphFocus}
+                scrollMem={scrollMem}
+                scrollKey={morphKey}
+              />
+            )
           ) : (
             <CanvasGhost
               hasConversation={!!conversationId}
