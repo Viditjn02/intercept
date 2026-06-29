@@ -326,8 +326,9 @@ export default function CommandSidebar({
           Only mounted when EXPANDED, so its hooks/queries don't run collapsed. */}
       <SidebarBlip focusedRunId={focusedRunId} conversationId={activeId} surface={surface} />
 
-      {/* NAV — Home, the 7 tracks, the brain */}
-      <nav aria-label="Tracks" className="px-2 pt-1">
+      {/* NAV — Home, the 7 tracks, the brain, radar, and the borrowed edge
+          features. Scrolls when the list is taller than the column. */}
+      <nav aria-label="Tracks" className="col-scroll min-h-0 flex-1 overflow-y-auto px-2 pt-1">
         <NavRow
           label="Home"
           sublabel="Command center"
@@ -469,10 +470,10 @@ export default function CommandSidebar({
           New
         </button>
       </div>
-      <div className="relative min-h-0 flex-1">
+      <div className="relative shrink-0">
         <div
           ref={recentScrollRef}
-          className="col-scroll h-full overflow-y-auto px-2 pb-2"
+          className="col-scroll max-h-40 overflow-y-auto px-2 pb-2"
         >
         {conversations === undefined ? (
           <div className="space-y-1.5 px-1 py-1">
