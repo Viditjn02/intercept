@@ -1,211 +1,248 @@
 # INTERCEPT
 
-**Point at a company. Get the live conversations where its buyers are asking the exact question it answers — each as a clickable, intent-scored thread with a drafted, human-approved reply — plus a generated video ad. Live on a realtime board, in under 3 minutes.**
+### One AI-native command center for your entire go-to-market.
+
+You give it a website. A swarm of AI agents runs the whole motion for you — finding buyers, writing outbound, scanning competitors' ads, building your creative, simulating the conversation before you send, and reviving the deals you already lost. Everything they learn feeds one compounding brain, so the system gets sharper every run.
+
+Built for the **YC AI Growth Hackathon**. Live demo: **https://intercept-two.vercel.app**
+
+![Command Center](docs/screenshots/command-center.png)
+
+---
+
+## The problem
+
+Go-to-market is sold to you in pieces. One product for outbound. One for competitor research. One for ads. One for finding leads. One for onboarding. You end up paying for ten tools and stitching them together yourself — you're still the operator.
+
+INTERCEPT is the opposite. It's a single command center where each of those pieces is a "play" the swarm runs against one target, and every play writes back into a shared brain. Point it at a company, pick a play (or fire all of them), and watch the work happen live.
+
+---
+
+## Table of contents
+
+- [The product, page by page](#the-product-page-by-page)
+- [Architecture](#architecture)
+- [The agent swarm](#the-agent-swarm)
+- [Sponsors and what they power](#sponsors-and-what-they-power)
+- [Running it locally](#running-it-locally)
+- [Project structure](#project-structure)
+- [Deployment](#deployment)
+
+---
+
+## The product, page by page
+
+### Command Center
+
+The landing surface. Point INTERCEPT at a company, and the swarm starts working. Every play is a card with a live stat; the right rail is the real-time agent feed; the top-left mascot is **Blip**, a reactive copilot that nudges you toward the next move; and the **24/7** switch lets the agents keep running overnight.
+
+![Onboarding — point INTERCEPT at a company](docs/screenshots/command-center-onboarding.png)
+
+Pick a play, or type a free-form instruction into the command bar and the router figures out which agents to run.
+
+### Reading Minds — intent radar
+
+Instead of a static lead list, this finds **live buyer intent**: real conversations where people are describing the problem you solve, ranked by how close they are to buying. Threads are scored (frustrated, browsing) and the system can draft a reply for you to approve.
+
+![Reading Minds — live conversations ranked by buyer intent](docs/screenshots/reading-minds.png)
+
+### Revenue on Autopilot — the outbound swarm
+
+Your outbound SDR team as a pipeline of agents: an **Enricher** builds the ICP and positioning, a **Sourcer** finds companies and verified contacts, a **Qualifier** scores fit 0–100 and drops the misses, a **Writer** drafts signal-grounded emails, and a **Digital Twin** simulates the buyer's reply before you send. The board renders the whole funnel — sourced → qualified → drafted → sent.
+
+![Revenue on Autopilot — the outbound agent pipeline](docs/screenshots/revenue-pipeline.png)
+
+**Pitch Lab (the Digital Twin).** Before anything goes out, a simulated prospect reads each draft, predicts the reply, and scores it 0–100 — with the exact objections it expects and concrete suggestions to fix the draft.
+
+![Pitch Lab — a digital twin predicts and scores each reply](docs/screenshots/pitch-lab.png)
+
+**Email Studio (Brew).** You don't send ugly plain text. Design the email — layout, accent, logo, tone, call to action — with a live preview, then send the branded version or a plain cold email. Save designs as templates.
+
+![Email Studio — designed emails with a live preview](docs/screenshots/email-studio.png)
+
+### Ad Intelligence — scan their ads
+
+Discover a company's real competitors and pull the ads they're **actually running** across Meta, Google, and TikTok, scored and ranked by how long they've been live (a proxy for what's working). One click generates your own version of any winner.
+
+![Ad Intelligence — competitors' live ads, scored and ranked](docs/screenshots/ad-intelligence.png)
+
+### Ad Factory — make the ad
+
+Once INTERCEPT knows what's working, it builds your creative: a scroll-stopping image, the copy, and labeled variations (outcome-led, social-proof, and so on), each with a rationale for why it should win.
+
+![Ad Factory — a generated ad with image, copy, and variants](docs/screenshots/ad-factory-ad.png)
+
+It also generates **video** — portrait (9:16) or landscape (16:9) — and degrades gracefully to a static frame if the chosen provider is unavailable. Paste a competitor's link or a viral post and it reverse-engineers the angles and hooks first.
+
+![Ad Factory — a generated video ad, portrait or landscape](docs/screenshots/ad-factory-video.png)
+
+### Algorithm Hacking — go viral
+
+Multiple post angles per platform, each scored by a virality model on hook, emotion, clarity, and timeliness — the winner is starred. It also produces a short-form vertical reel script and lays the scored posts across a two-week content calendar.
+
+![Algorithm Hacking — viral post variants, scored](docs/screenshots/algorithm-hacking-posts.png)
+
+![Algorithm Hacking — short-form reel and content calendar](docs/screenshots/algorithm-hacking-reel.png)
+
+### Zero to One — PLG onboarding
+
+Generates a first-run product tour and an activation checklist for the target's own product, with a paste-ready embed (Shepherd.js) you can drop straight into a site.
+
+![Zero to One — onboarding tour and activation flow](docs/screenshots/zero-to-one-tour.png)
+
+![Zero to One — activation checklist and paste-ready embed](docs/screenshots/zero-to-one-checklist.png)
+
+### GitHub Scout — dissect projects
+
+Point it at a company, a hackathon, an org, or a topic. It searches public GitHub, enumerates the real repos, reads each one (README, manifest, contributors), and tells you what they're building, their stack, maturity, and how you'd sell to them. Public artifacts only — honest, with confidence and provenance on every row.
+
+![GitHub Scout — what everyone's building](docs/screenshots/github-scout.png)
+
+### The Brain — compounding knowledge
+
+None of the agents work in isolation. Every run writes back into the Brain — an interactive knowledge graph of companies, competitors, buyer segments, and campaigns. It remembers, connects, and compounds run over run instead of starting from zero.
+
+![The Brain — a compounding knowledge graph](docs/screenshots/brain-graph.png)
+
+### Drive everything from the keyboard
+
+A `⌘K` command palette fires any play, opens any board, or runs a free-form instruction.
+
+![Command palette — fire any play from the keyboard](docs/screenshots/command-palette.png)
+
+### Three more, built late
+
+- **Conversation Simulator** — for any prospect, INTERCEPT plays out the full outbound conversation before you send: a personalized opener, the prospect's adaptive replies, a live intent meter, and a final score with a verdict (book the call, or pass).
+- **Win-Back** — your CRM is full of deals that almost closed. INTERCEPT reads each lost deal, figures out *why* it died, then watches for the moment that reason dissolves (you shipped the feature, their champion got promoted, they raised) and surfaces who's ready to re-engage — with a transparent score: shipped it · they changed · still warm · looks re-won.
+- **Hackathon Radar** — INTERCEPT turns its own engine on the competition: it pulls every project in the field, dissects each repo, and ranks itself against everyone — where it leads, where it lags, and which ideas to build next.
+
+The **shareable Dossier** turns any run into a one-click intelligence report you'd actually send to a founder or investor.
+
+---
+
+## Architecture
+
+INTERCEPT is a **Next.js 15** App Router frontend over a **Convex** backend. Convex is the real-time backbone: every agent, every run, and every live update you see in the UI is orchestrated there, and the React client subscribes to Convex queries so boards stream as the work happens. Secrets live in the Convex deployment environment, never in the bundle.
 
 ```
-                    ┌─────────────────────────────────────────────┐
-   "stripe.com"  →  │  🔎 a swarm of AI detectives goes to work    │  →  a board of
-   (or a name,      │     router · enrich · detective · creative   │     CLICKABLE,
-    competitor,     │     · watcher — in parallel, on Convex       │     intent-scored
-    community)      └─────────────────────────────────────────────┘     LIVE threads
+                          ┌─────────────────────────────────────────┐
+   Next.js 15 (client)    │  Command Center · boards · Brain · Blip  │
+   subscribes live  ◀─────│  (app/, components/)                     │
+                          └───────────────┬─────────────────────────┘
+                                          │ mutations / queries / actions
+                          ┌───────────────▼─────────────────────────┐
+   Convex (backend)       │  router → swarm → fan-in → persist        │
+   real-time + storage    │  runs · threads · prospects · ads ·       │
+                          │  posts · projects · knowledge (the Brain) │
+                          └───────────────┬─────────────────────────┘
+                                          │ graceful, fetch-based clients
+        ┌──────────────┬─────────────────┼───────────────┬──────────────┐
+   Orange Slice      Fiber          AgentMail        Supadata        OpenAI
+   (enrich/source) (signal/reveal) (send/receive)  (scrape/video)  (reasoning)
+        └─ Exa · Brew · Pexels · WaveSpeed / Veo / fal · GitHub · Meta · PostHog ─┘
 ```
 
----
+**How a play runs.** A play is a `run` with an `intent`. The **router** resolves the canonical domain and classification first (phase 0). The orchestrator then fans out the relevant agents, each an `internalAction` that does its work and writes its board rows back to Convex. A fan-in deadline keeps a run honest — slow steps degrade to "partial" rather than hanging — and a short-lived `stepCache` shares common steps (like enrichment) across tracks so the same work isn't paid for twice. A dedupe layer reuses a recently completed `(intent, target)` run instead of redoing it.
 
-## What INTERCEPT is
+**The compounding brain.** Each agent emits structured knowledge (ICP, competitors, buyer segments) that's written to a `knowledge` store and rendered as the Brain graph. Later runs read from it, so the system's answers sharpen over time instead of resetting.
 
-Most "GTM intelligence" tools hand you a **score**, a **list of contacts**, or a **lookalike audience**. None of those are clickable. None of them point at a human who is, right now, asking the exact question your product answers.
-
-INTERCEPT does. You give it a company (a URL, a name, a competitor, a community, or a blob of text). A swarm of agents:
-
-1. **Figures out who the buyer is** — the ICP and the company's positioning.
-2. **Finds the live communities** where that buyer hangs out (Reddit, Hacker News, forums).
-3. **Surfaces the actual threads** — real, clickable URLs — where someone is asking the question the company answers, and **scores each by buying intent** (0–100, labelled `browsing · comparing · frustrated · ready_to_buy`).
-4. **Drafts the in-thread reply** for the highest-intent threads — sitting behind a **human-approval gate** (nothing is ever posted automatically).
-5. **Generates a video ad** (Veo) for the company, in parallel.
-
-All of it streams onto a **realtime Convex board** as each agent reports in. The whole run is bounded by a **90-second fan-in deadline**: whatever has completed by then renders into the brief, and slow agents degrade gracefully to `skipped` instead of blocking the demo.
+**Graceful by contract.** Every external integration is written to degrade, never throw: no API key, a rate limit, an empty page, or a slow provider yields fewer or empty results and a labeled fallback — the run still completes. The video pipeline is provider-agnostic (WaveSpeed LTX → Veo → fal → a local Ken-Burns worker → a static frame), so any one available key produces a video and a missing one falls back cleanly.
 
 ---
 
-## The moat
+## The agent swarm
 
-> **The atomic deliverable is a clickable, intent-scored link to a LIVE conversation.**
+Twenty specialized agents (`convex/agents/`), grouped by the surface they serve:
 
-Not a score. Not a contact. Not a "lookalike audience." A **URL you can tap right now** that lands you on a real person, in a real community, asking the question your product answers — ranked by how close they are to buying — with a reply already drafted for you to approve.
-
-That is the thing competitors can't trivially copy, because it requires (a) real-time community search, (b) per-thread intent scoring, and (c) a drafted, context-aware reply — fused into one tappable object. Everything else in INTERCEPT exists to produce and defend that object.
-
----
-
-## Architecture (at a glance)
-
-```
- input ──▶ Router ──▶ parallel swarm (Convex Workpool, maxParallelism 8) ──▶ 90s fan-in ──▶ realtime board ──▶ the click
-                       ├─ enrich      (Orange Slice + OpenAI → ICP/positioning)
-                       ├─ detective   (Exa → communities + intent-scored threads)   ◀── THE MOAT
-                       ├─ creative    (Veo 3.1 Fast → video ad)
-                       └─ watcher      (Gemini → live signal / freshness)
-```
-
-- **Convex** is the backbone: realtime DB + the swarm runtime. The orchestrator (`convex/run.ts`) owns the live board (`agentStatus`) and the deadline/partial-render fan-in.
-- **Convex Workpool** (registered as `swarmpool`, `maxParallelism: 8`) fans the agents out to run concurrently.
-- **Exa** powers **the moat** — real, clickable community threads.
-- **OpenAI** (`gpt-4o-mini`) does routing, intent scoring, and reply drafting.
-- **Veo 3.1 Fast** generates the video ad; **Gemini 2.5 Flash** powers the watcher.
-- **Next.js 15 (App Router)** renders the board with `useQuery`/`useMutation` from `convex/react` against the `by_run` indexes — so the UI updates the instant any agent writes a result.
-
-Each swarm agent is its own Convex module (`convex/agents/<name>.ts`) exporting `export const run = internalAction(...)`. Agents persist their own results via their own internal mutations and **never touch `agentStatus`** — that belongs to the orchestrator. See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the full data-flow diagram and the table/agent map.
-
-### The agents
-
-| Agent | Job | External service | Writes to |
-|-----------|-----------------------------------------------------------|----------------------------|-----------------------|
-| `router` | Classify the input, decide which agents to run | OpenAI | (orchestration only) |
-| `enrich` | Resolve company → ICP + positioning | Orange Slice + OpenAI | `brief` |
-| `detective` | Find communities + **intent-scored, clickable threads** | **Exa** + OpenAI | `communities`, `threads` |
-| `creative` | Generate the video ad | **Veo 3.1 Fast** | `creatives` |
-| `watcher` | Live signal / freshness check on the conversation | Gemini 2.5 Flash | `agentStatus` notes |
-
-### The tables (the frozen contract)
-
-| Table | Role |
-|----------------|--------------------------------------------------------------------------------|
-| `runs` | One GTM run. Holds the input, status, and the hard `deadlineAt` fan-in clock. |
-| `agentStatus` | **Drives the live board** — one row per agent per run. Owned by the orchestrator. |
-| `communities` | The live communities where the buyer hangs out. |
-| `threads` | **THE MOAT** — `url`, `title`, `snippet`, `intentScore` (0–100), `intentLabel`. |
-| `drafts` | The in-thread reply, gated: `awaiting_approval → approved \| rejected → posted`. |
-| `creatives` | The generated video ad. |
-| `brief` | The synthesized `icp` + `positioning`. |
-
-The full shape lives in `convex/schema.ts` and `lib/contract.ts` — **the frozen contract**. Every package builds against it.
+| Track | Agents |
+|---|---|
+| Routing | `router` (resolve domain + classify intent, phase 0) |
+| Reading Minds | `detective`, `trendscout` (find and rank live intent) |
+| Revenue on Autopilot | `enrich` (ICP/positioning), `sourcer` (companies + contacts), `qualifier` (fit 0–100), `writer` (drafts), `twin` (Digital Twin / Pitch Lab), `sender` (send), `reply` (inbound), `follower` (follow-ups) |
+| Ad Intelligence | `adscout` (discover + scan competitor ads) |
+| Ad Factory | `adsmith` (generate similar ads), `creative` (image + video), `reelmaker` (short-form reel) |
+| Algorithm Hacking | `composer` (post variants), `calendar` (content calendar) |
+| Zero to One | `guide` (onboarding tour + activation) |
+| GitHub Scout | `scout` (discover + dissect repos) |
+| Always-on | `watcher` (24/7 monitoring) |
 
 ---
 
-## Sponsor mapping
+## Sponsors and what they power
 
-| Sponsor | Where it shows up in INTERCEPT |
-|------------------|----------------------------------------------------------------------------------------|
-| **Convex** | The whole realtime backbone: DB, the live swarm board, the Workpool fan-out, the reactive frontend. |
-| **Exa** | **The moat.** Real, clickable, intent-scorable community threads — the on-camera thread source. |
-| **OpenAI** | Router (input classification), per-thread intent scoring, and reply drafting (`gpt-4o-mini`). |
-| **Google / Veo** | Veo 3.1 Fast generates the video ad; Gemini 2.5 Flash powers the watcher agent. |
-| **Orange Slice** | **Enrichment + signal** that sharpens the ICP/positioning — *not* the on-camera thread source. |
-| **AgentMail / Fiber** | *(vision / v2)* — approval-gate inbox + verified-contact outreach beyond the in-thread reply. |
+Everything below is wired to real, live services — not mocks.
+
+| Sponsor | Powers | Code |
+|---|---|---|
+| **Convex** | The entire backend, real-time orchestration, storage | `convex/` |
+| **Orange Slice** | Enrichment, company/person search, sourcing | `lib/orangeslice.ts` |
+| **Fiber** | External buying signals + decision-maker contact reveal | `lib/fiber.ts` |
+| **AgentMail** | Sending and receiving cold email | `lib/agentmail.ts` |
+| **Supadata** | Web scraping + video transcripts (JS-rendered pages, link breakdown) | `lib/supadata.ts` |
+| **Brew** | Designed, branded email rendering | `lib/brew.ts` |
+| **Exa** | Community + web discovery | `lib/exa.ts` |
+| **WaveSpeed / Veo / fal** | Video generation (provider-agnostic chain) | `lib/wavespeed.ts`, `lib/veo.ts`, `lib/videoWorker.ts` |
+| **Pexels** | Stock visuals for creative | `lib/image.ts` |
+| **Meta / ad scanning** | Competitor ad discovery across Meta + Google + TikTok | `lib/meta.ts`, `lib/adscan.ts` |
+| **OpenAI / Gemini** | Reasoning, scoring, generation | `lib/openai.ts`, `lib/gemini.ts` |
+| **PostHog** | Product analytics | `lib/posthog.ts` |
 
 ---
 
-## Setup
+## Running it locally
 
-**Prereqs:** Node 18+, a Convex account (`npx convex`), and API keys for the services above.
+**Prerequisites:** Node 18+ and a Convex account (`npx convex` handles the rest).
 
 ```bash
-# 1. Install
 npm install
-
-# 2. Configure secrets
-cp .env.example .env.local
-#   then fill in EXA_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, ORANGE_SLICE_API_KEY
-
-# 3. Boot Convex (creates the deployment, populates CONVEX_DEPLOYMENT + NEXT_PUBLIC_CONVEX_URL,
-#    and pushes the schema + functions). Leave this running.
-npx convex dev
-
-# 4. Set the API keys ON the Convex deployment (the agents run inside Convex "use node"
-#    actions and read process.env there, not from .env.local):
-npx convex env set EXA_API_KEY        <key>
-npx convex env set OPENAI_API_KEY     <key>
-npx convex env set GOOGLE_API_KEY     <key>
-npx convex env set ORANGE_SLICE_API_KEY <key>
-
-# 5. In a second terminal, run the app
-npm run dev
-# → http://localhost:3000
 ```
 
-> **Why keys go on Convex too:** the swarm agents execute server-side inside Convex `"use node"` actions and read keys from `process.env` *in the Convex runtime*. `.env.local` only covers the Next.js side (`NEXT_PUBLIC_CONVEX_URL`). Set both.
+Set the keys on your Convex deployment (not in the bundle):
 
-### Environment variables
-
-| Var | Used by | Required |
-|--------------------------|-----------------------------------------------|---------------------|
-| `NEXT_PUBLIC_CONVEX_URL` | Frontend → Convex client | yes |
-| `CONVEX_DEPLOYMENT` | `npx convex dev` | yes |
-| `EXA_API_KEY` | detective (the moat) | yes |
-| `OPENAI_API_KEY` | router · intent scoring · reply drafting | yes |
-| `GOOGLE_API_KEY` | creative (Veo) · watcher (Gemini) | yes (for live video)|
-| `ORANGE_SLICE_API_KEY` | enrich | yes |
-| `AGENTMAIL_API_KEY` | *(vision / v2)* outreach inbox | no |
-| `FIBER_API_KEY` | *(vision / v2)* verified contacts | no |
-
----
-
-## Run it
-
-1. Open `http://localhost:3000`.
-2. Type or paste a company — a URL (`stripe.com`), a name (`Linear`), a competitor, a community, or a blob of text.
-3. Hit **Run**. Watch the **swarm board** light up agent-by-agent in realtime.
-4. Within ~90s you get the **brief** (ICP + positioning), the **communities**, and the **moat**: a ranked list of clickable, intent-scored threads.
-5. Click any thread → it opens the **real live conversation**.
-6. Each high-intent thread has a **drafted reply** sitting in `awaiting_approval`. **Approve** or **reject** it — nothing is ever posted without you.
-7. The **video ad** finishes rendering alongside.
-
----
-
-## The deterministic demo (replay mode)
-
-Live multi-agent runs over external APIs are gloriously unpredictable — exactly what you don't want on camera. INTERCEPT ships a **deterministic replay path** so the on-stage run is instant and cannot flop.
-
-- A run created with `replay: true` is hydrated from a cached fixture instead of hitting external APIs.
-- Fixtures live in `fixtures/<slug>.json` and conform to `ReplayFixture` in `lib/contract.ts` (`input`, `enrich`, `communities`, `threads`, `drafts`, `creativeUrl` — a pre-rendered Veo clip).
-- Seed them with:
-
-  ```bash
-  npm run seed        # tsx scripts/seed-demo.ts — loads the fixture(s) into Convex
-  ```
-
-- The board, the threads, the intent scores, the drafts, and the video are **all real artifacts** — they were produced by a real live run, then frozen. Replay just guarantees the *timing* of the demo, not the *substance*.
-
-Run the demo against a seeded fixture for the camera; run live for Q&A.
-
----
-
-## Honest notes
-
-We'd rather be precise than oversell. The things to know:
-
-- **Veo needs paid billing.** Veo 3.1 Fast (video) requires a Google account with **billing enabled** on the `GOOGLE_API_KEY`. Without it, the `creative` agent will fail gracefully (the run still completes), and the demo uses the **pre-rendered clip** baked into the replay fixture (`creativeUrl`).
-- **Orange Slice is enrichment, not the thread source.** Orange Slice sharpens the **ICP/positioning** in the `enrich` step. It is **not** where the on-camera clickable threads come from — **those come from Exa.** Don't conflate the two; the moat is Exa.
-- **Outreach is the in-thread reply, and it's human-approved.** INTERCEPT does **not** auto-post. It *drafts* a reply for high-intent threads; the draft sits in `awaiting_approval` and a human must **approve** before anything is sent. AgentMail/Fiber-style external outreach is **vision/v2**, not this build.
-- **The 90s deadline is real and intentional.** The fan-in renders the brief from whatever finished before `runs.deadlineAt` (`FANIN_DEADLINE_MS = 90_000`). A slow or failed agent becomes `skipped`/`failed` — it never blocks the board. Partial results are a feature, not a bug.
-- **Caps are deliberate.** `MAX_COMMUNITIES = 5`, `MAX_THREADS = 8` — tuned for signal density and a board that reads cleanly on stage, not exhaustiveness.
-
----
-
-## Project layout
-
-```
-convex/
-  schema.ts            # THE FROZEN CONTRACT — tables + indexes
-  convex.config.ts     # registers Workpool ("swarmpool") + Agent components
-  run.ts               # orchestrator — owns agentStatus + the 90s fan-in
-  agents/
-    router.ts          # input classification
-    enrich.ts          # ICP + positioning
-    detective.ts       # communities + intent-scored threads  ◀── THE MOAT
-    creative.ts        # Veo video ad
-    watcher.ts         # live signal / freshness
-lib/
-  contract.ts          # shared types: AGENTS, DiscoveredThread, ReplayFixture, caps…
-  exa.ts · openai.ts · veo.ts · orangeslice.ts   # external API clients (read process.env)
-app/                   # Next.js 15 App Router — the realtime board
-fixtures/<slug>.json   # deterministic replay fixtures (ReplayFixture)
-scripts/seed-demo.ts   # loads fixtures into Convex for the demo
+```bash
+npx convex env set OPENAI_API_KEY      sk-...
+npx convex env set ORANGESLICE_API_KEY ...
+npx convex env set FIBER_API_KEY       ...
+npx convex env set AGENTMAIL_API_KEY   ...
+npx convex env set SUPADATA_API_KEY    ...
+npx convex env set EXA_API_KEY         ...
+npx convex env set BREW_API_KEY        ...
+npx convex env set PEXELS_API_KEY      ...
+# optional video: npx convex env set WAVESPEED_API_KEY / FAL_KEY
 ```
 
-See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the full data-flow diagram and the table/agent map.
+`NEXT_PUBLIC_CONVEX_URL` and the PostHog public keys go in `.env.local` (gitignored). Then run the three processes, each in its own terminal:
+
+```bash
+npx convex dev        # the backend + function watcher (deploys on save)
+npm run dev           # the Next.js app on http://localhost:3000
+npm run video-worker  # optional local video worker on :8787
+```
+
+Seed demo data with `npm run seed`. Type-check with `npm run typecheck`.
 
 ---
 
-*INTERCEPT — find the conversation, not the contact.*
+## Project structure
+
+```
+app/                  Next.js App Router (the Command Center, dossier route, /api/brain)
+components/           UI — boards, the sidebar, Blip, the panels for each track
+convex/               Backend: schema, run orchestration, settings, the agents
+  agents/             The 20 swarm agents (one internalAction each)
+lib/                  Fetch-based integration clients (one per sponsor) + the contract
+scripts/              The video worker + the demo seeder
+docs/screenshots/     The images used in this README
+```
+
+The `contract` (`lib/contract.ts`) is the shared source of truth for capabilities, the agent roster, and the run/router types — so the client compiles independently of the backend deploy order.
+
+---
+
+## Deployment
+
+The backend deploys to Convex (`npx convex deploy`); the frontend is a standard Next.js app on Vercel with `NEXT_PUBLIC_CONVEX_URL` pointed at the production Convex deployment. The video worker is optional in production — without it, the provider-agnostic chain (or a static frame) takes over.
+
+---
+
+*Built fast, for the YC AI Growth Hackathon. Real data, real agents, one command center.*
